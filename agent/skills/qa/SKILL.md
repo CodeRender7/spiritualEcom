@@ -128,3 +128,8 @@ After filing, print all issue URLs (with blocking relationships summarized) and 
 ### 5. Continue the session
 
 Keep going until the user says they're done. Each issue is independent — don't batch them.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph to learn domain language; query the tracker.

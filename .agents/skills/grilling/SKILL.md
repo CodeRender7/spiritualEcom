@@ -1,4 +1,4 @@
----
+﻿---
 name: grilling
 description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.
 ---
@@ -7,6 +7,11 @@ Interview me relentlessly about every aspect of this until we reach a shared und
 
 Ask the questions one at a time, waiting for feedback on each question before continuing. Asking multiple questions at once is bewildering.
 
-If a *fact* can be found by exploring the environment (filesystem, tools, etc.), look it up rather than asking me. The *decisions*, though, are mine — put each one to me and wait for my answer.
+If a *fact* can be found by exploring the environment (filesystem, tools, etc.), look it up rather than asking me. The *decisions*, though, are mine â€” put each one to me and wait for my answer.
 
 Do not act on it until I confirm we have reached a shared understanding.
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: No mandatory MCP; use codebase-memory `search_graph` only if a claim needs grounding.

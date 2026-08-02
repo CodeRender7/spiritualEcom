@@ -76,3 +76,8 @@ Off the main flow entirely.
 ## Precondition
 
 **`/setup-matt-pocock-skills`** — run before your first engineering flow to configure the issue tracker, triage labels, and doc layout the other skills assume. Custom issue trackers also work.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **router**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: No direct MCP use; routes to other skills.

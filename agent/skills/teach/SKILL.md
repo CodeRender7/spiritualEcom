@@ -138,3 +138,8 @@ Glossaries, in particular, are an essential reference. Once one is created, it s
 ## `NOTES.md`
 
 The user will sometimes express preferences of how they want to be taught, or things you should keep in mind. This is the place to record those preferences, so you can refer back to them when designing lessons or working with the user.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory get_architecture for teaching examples.

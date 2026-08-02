@@ -50,3 +50,8 @@ Present findings as a structured report covering:
 6. **Recommendations** — Prioritized list of improvements
 
 Use `/improve-codebase-architecture` to act on findings.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: Use ALL four: fallow analyze/check_health, codebase-memory get_architecture, gitnexus query/impact, graphify query.

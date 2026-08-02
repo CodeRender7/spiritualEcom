@@ -10,3 +10,8 @@ Ask the questions one at a time, waiting for feedback on each question before co
 If a *fact* can be found by exploring the environment (filesystem, tools, etc.), look it up rather than asking me. The *decisions*, though, are mine — put each one to me and wait for my answer.
 
 Do not act on it until I confirm we have reached a shared understanding.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: No mandatory MCP; codebase-memory search_graph only if a claim needs grounding.

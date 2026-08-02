@@ -91,3 +91,8 @@ When invoked again in the same conversation:
 3. Update definitions if understanding has evolved
 4. Re-flag any new ambiguities
 5. Rewrite the example dialogue to incorporate new terms
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: No MCP; extract glossary from conversation.

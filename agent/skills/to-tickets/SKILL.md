@@ -103,3 +103,8 @@ The end-to-end behaviour this ticket makes work, from the user's perspective —
 </issue-template>
 
 In either form, avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph for context when splitting tickets.

@@ -1,4 +1,4 @@
----
+﻿---
 name: research
 description: Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to a background agent.
 ---
@@ -7,6 +7,11 @@ Spin up a **background agent** to do the research, so you keep working while it 
 
 Its job:
 
-1. Investigate the question against **primary sources** — official docs, source code, specs, first-party APIs — not a secondary write-up of them. Follow every claim back to the source that owns it.
+1. Investigate the question against **primary sources** â€” official docs, source code, specs, first-party APIs â€” not a secondary write-up of them. Follow every claim back to the source that owns it.
 2. Write the findings to a single Markdown file, citing each claim's source.
 3. Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: WebSearch first; codebase-memory `search_graph` for local context.

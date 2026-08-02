@@ -1,4 +1,4 @@
----
+﻿---
 name: qa
 description: Interactive QA session where user reports bugs or issues conversationally, and the agent files GitHub issues. Explores the codebase in the background for context and domain language. Use when user wants to report bugs, do QA, file issues conversationally, or mentions "QA session".
 ---
@@ -21,13 +21,13 @@ Do NOT over-interview. If the description is clear enough to file, move on.
 
 ### 2. Explore the codebase in the background
 
-While talking to the user, kick off an Agent (subagent_type=Explore) in the background to understand the relevant area. The goal is NOT to find a fix — it's to:
+While talking to the user, kick off an Agent (subagent_type=Explore) in the background to understand the relevant area. The goal is NOT to find a fix â€” it's to:
 
 - Learn the domain language used in that area (check UBIQUITOUS_LANGUAGE.md)
 - Understand what the feature is supposed to do
 - Identify the user-facing behavior boundary
 
-This context helps you write a better issue — but the issue itself should NOT reference specific files, line numbers, or internal implementation details.
+This context helps you write a better issue â€” but the issue itself should NOT reference specific files, line numbers, or internal implementation details.
 
 ### 3. Assess scope: single issue or breakdown?
 
@@ -46,9 +46,9 @@ Keep as a single issue when:
 
 ### 4. File the GitHub issue(s)
 
-Create issues with `gh issue create`. Do NOT ask the user to review first — just file and share URLs.
+Create issues with `gh issue create`. Do NOT ask the user to review first â€” just file and share URLs.
 
-Issues must be **durable** — they should still make sense after major refactors. Write from the user's perspective.
+Issues must be **durable** â€” they should still make sense after major refactors. Write from the user's perspective.
 
 #### For a single issue
 
@@ -71,7 +71,7 @@ Use this template:
 
 ## Additional context
 
-[Any extra observations from the user or from codebase exploration that help frame the issue — e.g. "this only happens when using the Docker layer, not the filesystem layer" — use domain language but don't cite files]
+[Any extra observations from the user or from codebase exploration that help frame the issue â€” e.g. "this only happens when using the Docker layer, not the filesystem layer" â€” use domain language but don't cite files]
 ```
 
 #### For a breakdown (multiple issues)
@@ -87,7 +87,7 @@ Use this template for each sub-issue:
 
 ## What's wrong
 
-[Describe this specific behavior problem — just this slice, not the whole report]
+[Describe this specific behavior problem â€” just this slice, not the whole report]
 
 ## What I expected
 
@@ -101,7 +101,7 @@ Use this template for each sub-issue:
 
 - #<issue-number> (if this issue can't be fixed until another is resolved)
 
-Or "None — can start immediately" if no blockers.
+Or "None â€” can start immediately" if no blockers.
 
 ## Additional context
 
@@ -110,21 +110,26 @@ Or "None — can start immediately" if no blockers.
 
 When creating a breakdown:
 
-- **Prefer many thin issues over few thick ones** — each should be independently fixable and verifiable
-- **Mark blocking relationships honestly** — if issue B genuinely can't be tested until issue A is fixed, say so. If they're independent, mark both as "None — can start immediately"
+- **Prefer many thin issues over few thick ones** â€” each should be independently fixable and verifiable
+- **Mark blocking relationships honestly** â€” if issue B genuinely can't be tested until issue A is fixed, say so. If they're independent, mark both as "None â€” can start immediately"
 - **Create issues in dependency order** so you can reference real issue numbers in "Blocked by"
-- **Maximize parallelism** — the goal is that multiple people (or agents) can grab different issues simultaneously
+- **Maximize parallelism** â€” the goal is that multiple people (or agents) can grab different issues simultaneously
 
 #### Rules for all issue bodies
 
-- **No file paths or line numbers** — these go stale
+- **No file paths or line numbers** â€” these go stale
 - **Use the project's domain language** (check UBIQUITOUS_LANGUAGE.md if it exists)
-- **Describe behaviors, not code** — "the sync service fails to apply the patch" not "applyPatch() throws on line 42"
-- **Reproduction steps are mandatory** — if you can't determine them, ask the user
-- **Keep it concise** — a developer should be able to read the issue in 30 seconds
+- **Describe behaviors, not code** â€” "the sync service fails to apply the patch" not "applyPatch() throws on line 42"
+- **Reproduction steps are mandatory** â€” if you can't determine them, ask the user
+- **Keep it concise** â€” a developer should be able to read the issue in 30 seconds
 
 After filing, print all issue URLs (with blocking relationships summarized) and ask: "Next issue, or are we done?"
 
 ### 5. Continue the session
 
-Keep going until the user says they're done. Each issue is independent — don't batch them.
+Keep going until the user says they're done. Each issue is independent â€” don't batch them.
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `search_graph` to learn domain language; query the tracker.

@@ -114,3 +114,8 @@ For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch us
 ### 5. Done
 
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention they can edit `docs/agents/*.md` directly later — re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: No MCP; one-time repo configuration.

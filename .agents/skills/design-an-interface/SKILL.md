@@ -1,4 +1,4 @@
----
+﻿---
 name: design-an-interface
 description: Generate multiple radically different interface designs for a module using parallel sub-agents. Use when user wants to design an API, explore interface options, compare module shapes, or mentions "design it twice".
 ---
@@ -92,3 +92,8 @@ From "A Philosophy of Software Design":
 - Don't skip comparison - the value is in contrast
 - Don't implement - this is purely about interface shape
 - Don't evaluate based on implementation effort
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `search_graph` for consumers; fallow `symbol_impact` on the interface under design.

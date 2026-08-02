@@ -1,6 +1,6 @@
----
+﻿---
 name: code-health
-description: "Track code pollution and complexity using fallow MCP — monitors unused code, duplication, circular dependencies, complexity hotspots, and architecture boundary violations."
+description: "Track code pollution and complexity using fallow MCP â€” monitors unused code, duplication, circular dependencies, complexity hotspots, and architecture boundary violations."
 ---
 
 Run a code health check using the fallow MCP server. This skill focuses on measurable code quality metrics that indicate code pollution and technical debt.
@@ -52,14 +52,19 @@ After running all checks, produce a health scorecard:
 
 | Metric | Score | Threshold | Status |
 |--------|-------|-----------|--------|
-| Dead code | X% | <5% | ✅/⚠️/❌ |
-| Duplication | X% | <3% | ✅/⚠️/❌ |
-| Complexity hotspots | N files | <5 | ✅/⚠️/❌ |
-| Circular deps | N cycles | 0 | ✅/⚠️/❌ |
-| Boundary violations | N | 0 | ✅/⚠️/❌ |
+| Dead code | X% | <5% | âœ…/âš ï¸/âŒ |
+| Duplication | X% | <3% | âœ…/âš ï¸/âŒ |
+| Complexity hotspots | N files | <5 | âœ…/âš ï¸/âŒ |
+| Circular deps | N cycles | 0 | âœ…/âš ï¸/âŒ |
+| Boundary violations | N | 0 | âœ…/âš ï¸/âŒ |
 
 ## Follow-up
 
 - Use `/improve-codebase-architecture` to address architecture issues
 - Use `/implement` with `/tdd` to safely remove dead code
 - Use `/diagnosing-bugs` if circular deps cause runtime issues
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: fallow `analyze` / `check_health` / `find_dupes`, with a baseline saved before and compared after.

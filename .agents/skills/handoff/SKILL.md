@@ -1,4 +1,4 @@
----
+﻿---
 name: handoff
 description: Compact the current conversation into a handoff document for another agent to pick up.
 argument-hint: "What will the next session be used for?"
@@ -14,3 +14,8 @@ Do not duplicate content already captured in other artifacts (specs, plans, ADRs
 Redact any sensitive information, such as API keys, passwords, or personally identifiable information.
 
 If the user passed arguments, treat them as a description of what the next session will focus on and tailor the doc accordingly.
+
+
+## Agent-to-MCP & pattern alignment
+
+Execution pattern: **any**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `get_architecture` to render handoff context.

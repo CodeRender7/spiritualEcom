@@ -12,3 +12,8 @@ description: "Use when you need to resolve an in-progress git merge/rebase confl
 4. Discover the project's **automated checks** and run them — typically typecheck, then tests, then format. Fix anything the merge broke.
 
 5. **Finish the merge/rebase.** Stage everything and commit. If rebasing, continue the rebase process until all commits are rebased.
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: gitnexus detect_changes; codebase-memory get_code_snippet on conflict regions.

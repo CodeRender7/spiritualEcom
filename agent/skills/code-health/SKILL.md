@@ -63,3 +63,8 @@ After running all checks, produce a health scorecard:
 - Use `/improve-codebase-architecture` to address architecture issues
 - Use `/implement` with `/tdd` to safely remove dead code
 - Use `/diagnosing-bugs` if circular deps cause runtime issues
+
+
+## agent-to-mcp-alignment
+
+Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: fallow analyze / check_health / find_dupes, with a baseline saved before and compared after.
