@@ -42,6 +42,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
@@ -55,10 +57,15 @@ services:
       - MEDUSA_ADMIN_EMAIL=${MEDUSA_ADMIN_EMAIL}
       - MEDUSA_ADMIN_PASSWORD=${MEDUSA_ADMIN_PASSWORD}
       - NODE_ENV=development
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=${MINIO_ROOT_USER}
+      - S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
+      - S3_FORCE_PATH_STYLE=true
+      - S3_URL=${S3_URL}
     ports:
       - "9000:9000"
-    volumes:
-      - backend_uploads:/app/uploads
 
   # ── Next.js Storefront ─────────────────────────────
   storefront:
@@ -79,6 +86,42 @@ services:
       - NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
     ports:
       - "8000:3000"
+
+  # ── MinIO (S3-compatible object storage) ─────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001"   # console
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set divinekart http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb -p divinekart/products divinekart/uploads divinekart/invoices
+      divinekart/waybills divinekart/support divinekart/logs &&
+      mc anonymous set download divinekart/products &&
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
   # ── OpenObserve (logs / metrics / traces) ─────────
   openobserve:
@@ -152,6 +195,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  backend_uploads:
+  minio_data:
   openobserve_data:
   langfuse_postgres_data:
