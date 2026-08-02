@@ -99,3 +99,7 @@ When no path exists, `trace` reports the furthest reachable node — exactly whe
 
 4. Root cause: fetchRates calls external API without proper timeout
 ```
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph; fallback fallow/gitnexus/graphify.

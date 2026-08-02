@@ -77,3 +77,7 @@ If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `get_architecture`; graphify `query` for vocabulary evidence.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory get_architecture; graphify explain; docs/adr via manage_adr.

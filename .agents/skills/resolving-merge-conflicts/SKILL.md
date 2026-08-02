@@ -17,3 +17,7 @@ description: "Use when you need to resolve an in-progress git merge/rebase confl
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: gitnexus `detect_changes`; codebase-memory `get_code_snippet` on conflict regions.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: gitnexus trace/impact for the conflicted symbols; codebase-memory context.

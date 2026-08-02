@@ -133,3 +133,7 @@ Keep going until the user says they're done. Each issue is independent â€” 
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `search_graph` to learn domain language; query the tracker.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: gitnexus detect_changes; codebase-memory search_graph; fallow check_changed.

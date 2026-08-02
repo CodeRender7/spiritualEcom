@@ -97,3 +97,7 @@ From "A Philosophy of Software Design":
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `search_graph` for consumers; fallow `symbol_impact` on the interface under design.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph consumers; fallow trace_export; graphify explain.

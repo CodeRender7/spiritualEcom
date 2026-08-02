@@ -84,3 +84,7 @@ Lists all repositories registered in `~/.gitnexus/registry.json`. The MCP `list_
 - **"Not inside a git repository"**: Run from a directory inside a git repo
 - **Index is stale after re-analyzing**: Restart Claude Code to reload the MCP server
 - **Embeddings slow**: Omit `--embeddings` (it's off by default) or set `OPENAI_API_KEY` for faster API-based embedding
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph; fallback fallow/gitnexus/graphify.

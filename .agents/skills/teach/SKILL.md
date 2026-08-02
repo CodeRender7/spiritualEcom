@@ -143,3 +143,7 @@ The user will sometimes express preferences of how they want to be taught, or th
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **any**. MCP servers are never mandatory; where codegrounding helps, use codebase-memory (get_architecture) for teaching examples. See docs/agents/mcp-usage.md.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph/snippets as lesson material.

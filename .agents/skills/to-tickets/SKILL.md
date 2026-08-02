@@ -108,3 +108,7 @@ In either form, avoid specific file paths or code snippets â€” they go stal
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `search_graph` for context when splitting tickets.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory trace_path; gitnexus context to scope each ticket.

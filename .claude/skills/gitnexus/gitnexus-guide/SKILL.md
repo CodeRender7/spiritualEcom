@@ -136,3 +136,7 @@ Read `gitnexus://repo/{name}/schema` before writing Cypher — it is the authori
 MATCH (caller)-[:CodeRelation {type: 'CALLS'}]->(f:Function {name: "myFunc"})
 RETURN caller.name, caller.filePath
 ```
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory search_graph; fallback fallow/gitnexus/graphify.

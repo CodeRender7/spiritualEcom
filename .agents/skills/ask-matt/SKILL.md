@@ -81,3 +81,7 @@ Off the main flow entirely.
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **router**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: No direct MCP use; routes to other skills.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: route via graphify query + codebase-memory search_graph over skill inventory.

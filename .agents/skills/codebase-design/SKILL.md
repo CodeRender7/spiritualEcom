@@ -117,3 +117,7 @@ Good interfaces make testing natural:
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: codebase-memory `get_code_snippet`; graphify `query` to see module neighbors before picking a seam.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: graphify explain/path; codebase-memory trace_path; fallow guard before edits.

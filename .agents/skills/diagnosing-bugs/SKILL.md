@@ -137,3 +137,7 @@ Required before declaring done:
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **loop**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: gitnexus `trace` / `detect_changes`; codebase-memory `trace_path`; fallow `check_health` on suspects; graphify `query`.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: codebase-memory trace_path; gitnexus context/impact; fallow security_candidates; fallow check_health.

@@ -68,3 +68,7 @@ After running all checks, produce a health scorecard:
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: fallow `analyze` / `check_health` / `find_dupes`, with a baseline saved before and compared after.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: fallow check_health/analyze; gitnexus ownership; codebase-memory search_graph.

@@ -55,3 +55,7 @@ Use `/improve-codebase-architecture` to act on findings.
 ## Agent-to-MCP & pattern alignment
 
 Execution pattern: **graph**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer `codebase-memory-mcp` (search_graph / trace_path) first, then `fallow`, `gitnexus`, `graphify` per `docs/agents/mcp-usage.md`. Specific usage: Use ALL four: fallow analyze/check_health, codebase-memory get_architecture, gitnexus query/impact, graphify query.
+
+## agent-to-mcp-alignment
+
+Execution pattern: **harness**. MCP servers are never mandatory for this skill, but where codegrounding helps, prefer codebase-memory-mcp (search_graph / trace_path) first, then fallow, gitnexus, graphify per docs/agents/mcp-usage.md. Specific usage: All four: fallow analyze, graphify query, gitnexus context, codebase-memory get_architecture.
