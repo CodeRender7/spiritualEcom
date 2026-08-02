@@ -23,6 +23,7 @@ Installed 4 MCP servers, added 18 new mattpocock/skills (total 27), and configur
 - **Installed via**: `pnpm add -g gitnexus` (global)
 - **Binary**: `C:/Users/raj90/AppData/Local/pnpm/bin/gitnexus.CMD`
 - **Purpose**: Git history intelligence — change frequency, co-change, impact analysis
+- **Windows FTS Note**: Muted the unresolvable FTS warning (`Warning: full-text/BM25 search is disabled`) caused by upstream DLL loading symbol resolution limits on win32.
 
 ### ✅ graphify (graphifyy v0.9.32 + graphify-mcp)
 - **Installed via**: `uv tool install graphifyy` (30 packages including tree-sitter parsers)
