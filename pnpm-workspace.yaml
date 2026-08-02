@@ -1,0 +1,17 @@
+packages:
+  - "backend"
+  - "storefront"
+
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - esbuild
+  - "@medusajs/telemetry"
+  - msgpackr-extract
+  - protobufjs
+
+allowBuilds:
+  "@medusajs/telemetry": true
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true

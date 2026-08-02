@@ -1,0 +1,30 @@
+{
+  "name": "divinekart-backend",
+  "version": "1.0.0",
+  "description": "DivineKart — Hindu Religious & Spiritual Ecommerce Backend",
+  "private": true,
+  "scripts": {
+    "dev": "medusa develop",
+    "start": "medusa start",
+    "build": "medusa build",
+    "typecheck": "tsc --noEmit",
+    "seed": "medusa exec ./scripts/seed-data.ts",
+    "db:migrate": "medusa db:migrate",
+    "db:generate": "medusa db:generate"
+  },
+  "dependencies": {
+    "@medusajs/admin-bundler": "^2.18.0",
+    "@medusajs/admin-sdk": "^2.18.0",
+    "@medusajs/cli": "^2.18.0",
+    "@medusajs/framework": "^2.18.0",
+    "@medusajs/medusa": "^2.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

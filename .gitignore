@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+pnpm-debug.log*
+
+# Build
+.next/
+out/
+dist/
+build/
+.medusa/
+.turbo/
+
+# Skills
+skills-lock.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+backend/.env
+storefront/.env
+
+# Docker
+postgres_data/
+redis_data/
+
+# Observability / MCP index data
+openobserve-data/
+langfuse-data/
+graphify-out/
+.codebase-memory/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+*.pem

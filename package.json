@@ -1,0 +1,23 @@
+{
+  "name": "divinekart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DivineKart — Hindu Religious & Spiritual Ecommerce Platform (Monorepo)",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "seed": "pnpm --filter divinekart-backend run seed",
+    "db:migrate": "pnpm --filter divinekart-backend run db:migrate",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "fallow": "^3.10.0",
+    "turbo": "^2.10.8"
+  }
+}

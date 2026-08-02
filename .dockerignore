@@ -1,0 +1,37 @@
+# Dependencies
+**/node_modules
+**/.pnpm-store
+
+# Build artifacts
+**/.next
+**/.medusa
+**/.turbo
+**/out
+**/dist
+**/build
+
+# Environment & secrets
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Skills / agents / docs (not needed inside images)
+.agents
+.opencode
+.claude
+skills
+data
+agent
+
+# Repo tooling
+.scratch
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
