@@ -1,0 +1,33 @@
+# graphify-mcp-tools.yml
+# Config for graphify-mcp-tools MCP server.
+# Paths are relative to this file's location (repo root).
+output: graphify-out
+
+repos:
+  - name: divinekart
+    path: .
+
+build:
+  mode: monorepo
+  graphify_args: []
+  exclude:
+    - node_modules
+    - .next
+    - .turbo
+    - dist
+    - out
+    - .git
+    - .codebase-memory
+  html: true
+  html_community_fallback: true
+
+outlines:
+  enabled: true
+  language: ts
+  paths:
+    - "backend/src/**/*.{ts,jts}"
+    - "storefront/src/**/*.{ts,tsx}"
+  exclude:
+    - "**/node_modules/**"
+
+server: {}
