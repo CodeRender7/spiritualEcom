@@ -216,3 +216,37 @@ export async function searchProducts(query: string): Promise<Product[]> {
       .includes(q)
   );
 }
+
+export interface StoreSettings {
+  payments: { cod_enabled: boolean; razorpay_enabled: boolean; razorpay_test_mode: boolean };
+  reviews: { enabled: boolean; require_moderation: boolean; allow_anonymous: boolean };
+  upsell: { enabled: boolean; strategy: "related" | "bestsellers" | "cross_sell"; max_items: number; min_order_value: number };
+  whatsapp: { enabled: boolean };
+  invoicing: { enabled: boolean; company_name: string };
+}
+
+export const DEFAULT_STORE_SETTINGS: StoreSettings = {
+  payments: { cod_enabled: true, razorpay_enabled: true, razorpay_test_mode: true },
+  reviews: { enabled: true, require_moderation: false, allow_anonymous: true },
+  upsell: { enabled: true, strategy: "related", max_items: 6, min_order_value: 0 },
+  whatsapp: { enabled: false },
+  invoicing: { enabled: true, company_name: "DivineKart" },
+};
+
+export async function fetchStoreSettings(): Promise<StoreSettings> {
+  try {
+    const data = await medusaFetch("/store/settings", 30);
+    if (data?.reviews || data?.upsell || data?.payments) {
+      return {
+        payments: { ...DEFAULT_STORE_SETTINGS.payments, ...data.payments },
+        reviews: { ...DEFAULT_STORE_SETTINGS.reviews, ...data.reviews },
+        upsell: { ...DEFAULT_STORE_SETTINGS.upsell, ...data.upsell },
+        whatsapp: { ...DEFAULT_STORE_SETTINGS.whatsapp, ...data.whatsapp },
+        invoicing: { ...DEFAULT_STORE_SETTINGS.invoicing, ...data.invoicing },
+      };
+    }
+  } catch (error) {
+    // fall through to defaults
+  }
+  return DEFAULT_STORE_SETTINGS;
+}

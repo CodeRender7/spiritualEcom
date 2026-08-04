@@ -5,6 +5,7 @@ import { StarRating } from "@/components/StarRating";
 import { PriceDisplay } from "@/components/PriceDisplay";
 import { fetchProductByHandle, fetchProducts } from "@/lib/medusa";
 import { ProductCarousel } from "@/components/ProductCarousel";
+import { ReviewsSection } from "@/components/ReviewsSection";
 import { notFound } from "next/navigation";
 
 interface Props {
@@ -90,6 +91,8 @@ export default async function ProductDetailPage({ params }: Props) {
         </div>
 
         <ProductCarousel title="You Might Also Like" subtitle="Related spiritual items" products={related} />
+
+        <ReviewsSection />
       </div>
       <Footer />
     </main>
