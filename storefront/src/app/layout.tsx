@@ -1,5 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { CartProvider } from "@/context/CartContext";
+import { CartDrawer } from "@/components/CartDrawer";
 
 export const metadata: Metadata = {
   title: "DivineKart — Sacred Art & Hindu Spiritual Essentials",
@@ -15,7 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <CartProvider>
+          {children}
+          <CartDrawer />
+        </CartProvider>
       </body>
     </html>
   );

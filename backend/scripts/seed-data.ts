@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils";
 import {
   createProductsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
+  updateRegionsWorkflow,
 } from "@medusajs/medusa/core-flows";
 
 export default async function seedData({ container }: ExecArgs) {
@@ -80,6 +81,17 @@ export default async function seedData({ container }: ExecArgs) {
       countries: ["in"],
     });
   }
+
+  // 3b. Enable payment providers on the region (COD, Razorpay, System)
+  console.log("🔹 Linking payment providers to Region...");
+  const enabledProviders = ["pp_system_default", "pp_razorpay_razorpay", "pp_cod_cod"];
+  const { result: updatedRegions } = await updateRegionsWorkflow(container).run({
+    input: {
+      selector: { id: region.id },
+      update: { payment_providers: enabledProviders },
+    },
+  });
+  console.log(`   Region payment providers: ${updatedRegions[0]?.payment_providers?.length ?? 0} linked`);
 
   // 4. Create 10 Collections (Hindu Spiritual & Religious Categories)
   console.log("🔹 Seeding collections (10 categories)...");

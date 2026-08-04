@@ -24,6 +24,26 @@ export default defineConfig({
         ],
       },
     },
+    {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/razorpay",
+            id: "razorpay",
+            options: {
+              key_id: process.env.RAZORPAY_KEY_ID,
+              key_secret: process.env.RAZORPAY_KEY_SECRET,
+            },
+          },
+          {
+            resolve: "./src/modules/cod",
+            id: "cod",
+            options: {},
+          },
+        ],
+      },
+    },
   ],
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
