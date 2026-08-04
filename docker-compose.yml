@@ -192,9 +192,64 @@ services:
       - REDIS_PORT=6379
       - LANGFUSE_LOG_LEVEL=info
 
+  # ── OmniRoute (AI Gateway) ──────────────────────────
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    container_name: omniroute
+    restart: unless-stopped
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=20128
+      - DASHBOARD_PORT=20128
+      - API_PORT=20129
+      - API_HOST=0.0.0.0
+      - LIVE_WS_PORT=20132
+      - LIVE_WS_HOST=0.0.0.0
+      - LIVE_WS_ALLOWED_ORIGINS=http://localhost:20128,http://127.0.0.1:20128
+    volumes:
+      - omniroute_data:/app/data
+    ports:
+      - "20128:20128"
+      - "20129:20129"
+      - "20132:20132"
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── OpenWA (WhatsApp Business Automation) ─────────
+  openwa:
+    image: openwa/wa-automate:latest
+    container_name: divinekart-openwa
+    restart: unless-stopped
+    environment:
+      - WEBHOOK_URL=http://backend:9000/webhooks/whatsapp
+      - ENABLE_QR_WEB=true
+      - PORT=8002
+      - USE_CHROME=true
+      - HEADLESS=true
+      - DISABLE_SPINS=true
+      - LOG_LEVEL=info
+    volumes:
+      - openwa_sessions:/sessions
+      - openwa_logs:/logs
+    ports:
+      - "8002:8002"   # QR code web interface + API
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
   openobserve_data:
   langfuse_postgres_data:
+  omniroute_data:
+  openwa_sessions:
+  openwa_logs:
