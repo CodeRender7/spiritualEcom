@@ -59,7 +59,7 @@ async function apiGet(): Promise<Settings | null> {
   try {
     const res = await fetch("/admin/settings", { credentials: "same-origin" })
     if (!res.ok) return null
-    const data = await res.json()
+    const data = (await res.json()) as { settings: Settings }
     return data.settings
   } catch {
     return null
@@ -75,7 +75,7 @@ async function apiPost(patch: Partial<Settings>): Promise<boolean> {
       body: JSON.stringify(patch),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
+    const data = (await res.json()) as { settings: Settings }
     return Boolean(data.settings)
   } catch {
     return false

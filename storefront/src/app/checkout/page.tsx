@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
+import { fetchStoreSettings } from "@/lib/medusa";
 
 type Address = {
   first_name: string;
@@ -39,9 +40,20 @@ export default function CheckoutPage() {
   const { items, subtotal, shipping, discount, total, clearCart } = useCart();
   const [step, setStep] = useState<1 | 2>(1);
   const [address, setAddress] = useState<Address>(EMPTY_ADDRESS);
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "razorpay">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "razorpay" | null>("cod");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [codEnabled, setCodEnabled] = useState(true);
+  const [razorpayEnabled, setRazorpayEnabled] = useState(true);
+
+  useEffect(() => {
+    fetchStoreSettings().then((s) => {
+      setCodEnabled(s.payments.cod_enabled);
+      setRazorpayEnabled(s.payments.razorpay_enabled);
+      const methods = [s.payments.cod_enabled ? "cod" : null, s.payments.razorpay_enabled ? "razorpay" : null].filter(Boolean) as ("cod" | "razorpay")[];
+      setPaymentMethod((prev) => (prev && methods.includes(prev) ? prev : methods[0] ?? null));
+    });
+  }, []);
 
   const update = (field: keyof Address, value: string) =>
     setAddress((prev) => ({ ...prev, [field]: value }));
@@ -57,6 +69,10 @@ export default function CheckoutPage() {
     address.postal_code.trim();
 
   const handlePlaceOrder = () => {
+    if (!paymentMethod) {
+      setError("Please select a payment method.");
+      return;
+    }
     setPlacing(true);
     setError(null);
     try {
@@ -194,26 +210,33 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="payment-options">
-                    <button
-                      className={`payment-option ${paymentMethod === "cod" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("cod")}
-                    >
-                      <span className="payment-option-icon">💵</span>
-                      <div>
-                        <strong>Cash on Delivery</strong>
-                        <div className="text-muted text-sm">Pay in cash when your order arrives</div>
-                      </div>
-                    </button>
-                    <button
-                      className={`payment-option ${paymentMethod === "razorpay" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("razorpay")}
-                    >
-                      <span className="payment-option-icon">💳</span>
-                      <div>
-                        <strong>Razorpay (UPI / Cards / NetBanking)</strong>
-                        <div className="text-muted text-sm">Secure online payment via Razorpay</div>
-                      </div>
-                    </button>
+                    {codEnabled && (
+                      <button
+                        className={`payment-option ${paymentMethod === "cod" ? "selected" : ""}`}
+                        onClick={() => setPaymentMethod("cod")}
+                      >
+                        <span className="payment-option-icon">💵</span>
+                        <div>
+                          <strong>Cash on Delivery</strong>
+                          <div className="text-muted text-sm">Pay in cash when your order arrives</div>
+                        </div>
+                      </button>
+                    )}
+                    {razorpayEnabled && (
+                      <button
+                        className={`payment-option ${paymentMethod === "razorpay" ? "selected" : ""}`}
+                        onClick={() => setPaymentMethod("razorpay")}
+                      >
+                        <span className="payment-option-icon">💳</span>
+                        <div>
+                          <strong>Razorpay (UPI / Cards / NetBanking)</strong>
+                          <div className="text-muted text-sm">Secure online payment via Razorpay</div>
+                        </div>
+                      </button>
+                    )}
+                    {!codEnabled && !razorpayEnabled && (
+                      <div className="form-error">No payment methods are currently available. Please contact support.</div>
+                    )}
                   </div>
 
                   {error && <div className="form-error">{error}</div>}
@@ -230,7 +253,9 @@ export default function CheckoutPage() {
                         ? "Placing order…"
                         : paymentMethod === "cod"
                           ? `Place Order • ${formatPrice(total)}`
-                          : "Pay Securely →"}
+                          : paymentMethod === "razorpay"
+                            ? "Pay Securely →"
+                            : "Select a payment method"}
                     </button>
                   </div>
                 </div>
