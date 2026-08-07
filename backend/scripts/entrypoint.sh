@@ -24,13 +24,17 @@ npx medusa db:migrate || {
 }
 echo "✅ Migrations complete"
 
-# Seed the database
-echo "🌱 Seeding database..."
-npm run seed || echo "ℹ️ Seeding already completed or skipped"
+# Seed the database if RUN_SEED is true or on first boot if needed
+if [ "$RUN_SEED" = "true" ]; then
+  echo "🌱 Seeding database..."
+  npm run seed || echo "ℹ️ Seeding already completed or skipped"
+fi
 
 # Create admin user (first run only, ignore errors if exists)
-echo "👤 Creating admin user..."
-npx medusa user -e "${MEDUSA_ADMIN_EMAIL:-admin@divinekart.com}" -p "${MEDUSA_ADMIN_PASSWORD:-supersecret}" 2>/dev/null || echo "ℹ️  Admin user may already exist"
+if [ "$CREATE_ADMIN" = "true" ]; then
+  echo "👤 Creating admin user..."
+  npx medusa user -e "${MEDUSA_ADMIN_EMAIL:-admin@divinekart.com}" -p "${MEDUSA_ADMIN_PASSWORD:-supersecret}" 2>/dev/null || echo "ℹ️  Admin user may already exist"
+fi
 
 # Start Medusa
 echo ""

@@ -21,6 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     ports:
@@ -219,26 +220,32 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── OpenWA (WhatsApp Business Automation) ─────────
   openwa:
     image: openwa/wa-automate:latest
     container_name: divinekart-openwa
+    shm_size: '2gb'
     restart: unless-stopped
+    command: --config /config/config.json --no-update
     environment:
       - WEBHOOK_URL=http://backend:9000/webhooks/whatsapp
       - ENABLE_QR_WEB=true
       - PORT=8002
-      - USE_CHROME=true
+      - HOST=0.0.0.0
+      - WA_HOST=0.0.0.0
+      - WA_PORT=8002
       - HEADLESS=true
       - DISABLE_SPINS=true
       - LOG_LEVEL=info
+      - WA_CLI_CONFIG=/config/config.json
+      - DBUS_SESSION_BUS_ADDRESS="disabled:"
     volumes:
       - openwa_sessions:/sessions
       - openwa_logs:/logs
+      - ./openwa-config.json:/config/config.json:ro
     ports:
       - "8002:8002"   # QR code web interface + API
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8002/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8002/health || wget --quiet --tries=1 --spider http://127.0.0.1:8002/ || exit 0"]
       interval: 30s
       timeout: 10s
       retries: 3
