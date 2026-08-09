@@ -220,15 +220,23 @@ services:
       retries: 3
       start_period: 15s
 
+  # Patched from openwa/wa-automate:latest — adds procps (the base image has no
+  # `ps`, so OpenWA crashes with `Error: spawn ps ENOENT` and Docker restarts it).
+  # Webhook env vars must be WA_-prefixed to be read by the OpenWA CLI:
+  #   WA_WEBHOOK  -> listener events (onMessage, onStateChanged, ack...)
+  #   WA_EV       -> event namespaces (qr, STARTUP, qrUrl...) needed for QR codes
   openwa:
-    image: openwa/wa-automate:latest
+    build:
+      context: .
+      dockerfile: openwa.Dockerfile
+    image: divinekart-openwa:patched
     container_name: divinekart-openwa
     shm_size: '2gb'
     restart: unless-stopped
-    command: --config /config/config.json --no-update
+    command: /usr/src/app/node_modules/@open-wa/wa-automate/bin/server.js --use-chrome --in-docker --qr-timeout 0 --popup --debug --force-port --config /config/config.json --no-update
     environment:
-      - WEBHOOK_URL=http://backend:9000/webhooks/whatsapp
-      - ENABLE_QR_WEB=true
+      - WA_WEBHOOK=http://backend:9000/webhooks/whatsapp
+      - WA_EV=http://backend:9000/webhooks/whatsapp
       - PORT=8002
       - HOST=0.0.0.0
       - WA_HOST=0.0.0.0
@@ -245,11 +253,14 @@ services:
     ports:
       - "8002:8002"   # QR code web interface + API
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8002/health || wget --quiet --tries=1 --spider http://127.0.0.1:8002/ || exit 0"]
+      # Probe a real EasyAPI route instead of the popup page. The API only
+      # exists while EasyAPI is mounted (browser up). Without procps the
+      # container would crash-loop forever — this detects that.
+      test: ["CMD-SHELL", "curl -fsS -X POST http://127.0.0.1:8002/healthCheck -H 'Content-Type: application/json' -d '{\"args\":{}}' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
 volumes:
   postgres_data:

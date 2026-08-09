@@ -1,6 +1,249 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "omniroute/auto/best-coding",
+  "lsp":true,
+  "provider": {
+    "omniroute": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OmniRoute",
+      "options": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "sk-37ffd22d73ff7084-38bc84-c0d93d00"
+      },
+      "models": {
+        "auto/best-coding": {
+          "name": "Auto · Best Coding"
+        },
+        "auto/best-reasoning": {
+          "name": "Auto · Best Reasoning"
+        },
+        "auto/best-fast": {
+          "name": "Auto · Best Fast"
+        },
+        "auto/best-vision": {
+          "name": "Auto · Best Vision"
+        },
+        "auto/best-chat": {
+          "name": "Auto · Best Chat"
+        },
+        "auto/best-coding-fast": {
+          "name": "Auto · Coding Fast"
+        },
+        "auto/pro-coding": {
+          "name": "Auto · Pro Coding"
+        },
+        "auto/pro-reasoning": {
+          "name": "Auto · Pro Reasoning"
+        },
+        "auto/coding": {
+          "name": "Auto · Coding"
+        },
+        "auto/fast": {
+          "name": "Auto · Fast"
+        },
+        "auto/chat": {
+          "name": "Auto · Chat"
+        },
+        "auto/cheap": {
+          "name": "Auto · Cheap"
+        },
+        "auto/smart": {
+          "name": "Auto · Smart"
+        },
+        "auto/claude-opus": {
+          "name": "Auto · Claude Opus"
+        },
+        "auto/claude-sonnet": {
+          "name": "Auto · Claude Sonnet"
+        },
+        "auto/best-free": {
+          "name": "Auto · Best Free"
+        },
+        "auto/glm": {
+          "name": "Auto · GLM"
+        },
+        "auto/minimax": {
+          "name": "Auto · MiniMax"
+        },
+        "auto/gemini": {
+          "name": "Auto · Gemini"
+        },
+        "opencode-zen/claude-sonnet-5": {
+          "name": "Claude Sonnet 5"
+        },
+        "opencode-zen/claude-opus-4-8": {
+          "name": "Claude Opus 4.8"
+        },
+        "opencode-zen/claude-fable-5": {
+          "name": "Claude Fable 5"
+        },
+        "opencode-zen/gpt-5.6-sol": {
+          "name": "GPT 5.6 Sol"
+        },
+        "opencode-zen/glm-5.2": {
+          "name": "GLM 5.2"
+        },
+        "opencode-zen/kimi-k3": {
+          "name": "Kimi K3"
+        },
+        "opencode-zen/deepseek-v4-flash-free": {
+          "name": "DeepSeek V4 Flash (Free)"
+        },
+        "opencode-zen/mimo-v2.5-free": {
+          "name": "MiMo V2.5 (Free)"
+        },
+        "trk/moonshotai/kimi-k3-free": {
+          "name": "trk/moonshotai/kimi-k3-free"
+        }
+      }
+    }
+  },
   "plugin": [
     ".opencode/plugins/graphify.js"
+  ],
+  "agent": {
+    "plan": {
+      "prompt": "You are a senior software architect in planning mode. Before writing any code, you MUST:\n\n1. **Ask/Route** — Use `ask-matt` to choose the correct engineering flow. If it is a large foggy effort, run `/wayfinder` to chart a map of decision tickets.\n2. **Analyze** — Use MCP tools first (fallow check_health for complexity, gitnexus for impact, graphify for architecture, codebase-memory for call chains)\n3. **Assess** — Identify dead code, complexity hotspots, duplication, and circular dependencies using fallow MCP tools\n4. **Plan** — Write a structured implementation plan with clear steps, risks, and verification criteria\n5. **Scope** — Break large changes into safe, incremental commits\n\nNever skip analysis. Always check code health before proposing changes. Use fallow's analyze, check_health, and find_dupes tools to understand current codebase state.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "deny"
+      }
+    },
+    "build": {
+      "prompt": "You are an expert software engineer in build mode. Before implementing:\n\n1. **Verify plan** — Check that a plan exists and has been approved via `wayfinder` or standard planning\n2. **Pre-check** — Use fallow MCP tools (check_health, analyze) to understand current complexity before changes\n3. **Implement** — Write clean, well-tested code following the approved plan, using mattpocock/skills (like `tdd`, `domain-modeling`, `code-review`)\n4. **Post-check** — After changes, run fallow check_changed to verify no new dead code or regressions introduced\n5. **Validate** — Run tests and verify the build\n\nUse fallow trace_export before deleting any export. Use fallow check_health to monitor complexity after refactoring.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "allow"
+      }
+    },
+    "antigravity": {
+      "description": "Orchestrates, plans, and executes autonomous engineering workflows using mattpocock/skills",
+      "prompt": "You are the Antigravity agent, a senior autonomous engineering swarm intelligence. Your job is to orchestrate, plan, and execute software engineering workflows across this repository.\n\nYou natively use the mattpocock/skills system:\n1. Use `ask-matt` to route incoming ideas or issues to the correct engineering flow.\n2. Use `wayfinder` to chart maps of decision tickets for multi-session efforts.\n3. Integrate with MCP tools (gitnexus, graphify, codebase-memory, fallow) to perform deep code intelligence before acting.\n4. Follow TDD, domain-modeling, and code-review guidelines during implementation.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "allow"
+      }
+    }
+  },
+  "experimental": {
+    "openTelemetry": true
+  },
+  "plugin": [
+    "plugins/graphify.js",
+    ".opencode/plugins/graphify.js"
+  ],
+  "skills": {
+    "paths": [
+      ".opencode/skills",
+      ".agents/skills"
+    ]
+  },
+  "mcp": {
+    "gitnexus": {
+      "type": "local",
+      "command": [
+        "cmd.exe",
+        "/c",
+        "pnpm",
+        "exec",
+        "gitnexus",
+        "mcp"
+      ]
+    },
+    "graphify": {
+      "type": "local",
+      "command": [
+        "py",
+        "-3",
+        "-m",
+        "graphify.serve",
+        "graphify-out/graph.json"
+      ]
+    },
+    "fallow": {
+      "type": "local",
+      "command": [
+        "cmd.exe",
+        "/c",
+        "fallow-mcp"
+      ]
+    },
+  },
+  "agent": {
+    "plan": {
+      "prompt": "You are a senior software architect in planning mode. Before writing any code, you MUST:\n\n1. **Ask/Route** — Use `ask-matt` to choose the correct engineering flow. If it is a large foggy effort, run `/wayfinder` to chart a map of decision tickets.\n2. **Analyze** — Use MCP tools first (fallow check_health for complexity, gitnexus for impact, graphify for architecture, codebase-memory for call chains)\n3. **Assess** — Identify dead code, complexity hotspots, duplication, and circular dependencies using fallow MCP tools\n4. **Plan** — Write a structured implementation plan with clear steps, risks, and verification criteria\n5. **Scope** — Break large changes into safe, incremental commits\n\nNever skip analysis. Always check code health before proposing changes. Use fallow's analyze, check_health, and find_dupes tools to understand current codebase state.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "deny"
+      }
+    },
+    "build": {
+      "prompt": "You are an expert software engineer in build mode. Before implementing:\n\n1. **Verify plan** — Check that a plan exists and has been approved via `wayfinder` or standard planning\n2. **Pre-check** — Use fallow MCP tools (check_health, analyze) to understand current complexity before changes\n3. **Implement** — Write clean, well-tested code following the approved plan, using mattpocock/skills (like `tdd`, `domain-modeling`, `code-review`)\n4. **Post-check** — After changes, run fallow check_changed to verify no new dead code or regressions introduced\n5. **Validate** — Run tests and verify the build\n\nUse fallow trace_export before deleting any export. Use fallow check_health to monitor complexity after refactoring.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "allow"
+      }
+    },
+    "antigravity": {
+      "description": "Orchestrates, plans, and executes autonomous engineering workflows using mattpocock/skills",
+      "prompt": "You are the Antigravity agent, a senior autonomous engineering swarm intelligence. Your job is to orchestrate, plan, and execute software engineering workflows across this repository.\n\nYou natively use the mattpocock/skills system:\n1. Use `ask-matt` to route incoming ideas or issues to the correct engineering flow.\n2. Use `wayfinder` to chart maps of decision tickets for multi-session efforts.\n3. Integrate with MCP tools (gitnexus, graphify, codebase-memory, fallow) to perform deep code intelligence before acting.\n4. Follow TDD, domain-modeling, and code-review guidelines during implementation.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "edit": "allow"
+      }
+    }
+  },
+  "command": {
+    "ask-matt": {
+      "template": "Analyze the user's situation and use the ask-matt skill to route them to the correct engineering flow or standalone skill.\n\nUse the ask-matt skill rules to determine the main flow (idea -> ship, on-ramps, codebase health, vocabulary, crossing sessions, standalone) that fits the situation.",
+      "description": "Route to the correct engineering skill or flow"
+    },
+    "wayfinder": {
+      "template": "Initialize and chart a Wayfinder map of decision tickets for a large effort, or work through an existing Wayfinder map.\n\nUsage:\n- `/wayfinder` (charts a new map of decision tickets)\n- `/wayfinder <map-id-or-url>` (works through an existing map)\n\nFollow the wayfinder skill rules to plan the destination, map the frontier, create tickets, and work through them blockers-first.",
+      "description": "Chart or work through a Wayfinder map of decision tickets"
+    },
+    "fallow-analyze": {
+      "template": "Run a full fallow codebase analysis to identify dead code, unused exports, unused files, circular dependencies, and unlisted dependencies.\n\nUse the fallow MCP tools:\n1. `analyze` — Full project analysis for unused code\n2. `check_health` — Cyclomatic complexity and maintainability scores\n3. `find_dupes` — Detect duplicate code clones\n\nPresent results in a structured report:\n- **Dead Code**: Unused files, exports, types\n- **Complexity Hotspots**: Files with high cyclomatic complexity\n- **Duplication**: Clone groups and refactoring suggestions\n- **Dependencies**: Unlisted or unused package.json dependencies\n- **Circular Dependencies**: Detected circular import chains",
+      "description": "Full codebase health analysis with fallow"
+    },
+    "fallow-cleanup": {
+      "template": "Perform safe dead code cleanup using fallow MCP tools.\n\nWorkflow:\n1. Run `analyze` to find all unused exports and files\n2. For each candidate, run `trace_export` to verify it is truly unused (no dynamic imports bypass)\n3. Run `fix_preview` to preview safe removals\n4. Run `fix_apply` to apply safe automated removals\n5. Run `check_changed` to verify changes introduced no regressions\n\nPresent a summary of what was cleaned up and what remains for manual review.",
+      "description": "Safe dead code cleanup with trace verification"
+    },
+    "gitnexus-status": {
+      "template": "Check the GitNexus index status for this project using the gitnexus MCP tools.\n\nUse the gitnexus MCP server tools to:\n1. Check the current index status\n2. If the index is stale or missing, run `pnpm exec gitnexus analyze` to rebuild\n\nReport the status to the user and suggest next steps based on what was found.",
+      "description": "Check GitNexus code intelligence index status"
+    },
+    "gitnexus-lookup": {
+      "template": "Look up symbol references and relationships using the gitnexus MCP server.\n\nUsage: `/gitnexus-lookup <symbol-name>`\n\nUse the gitnexus MCP tools:\n- `context` tool to find all callers, callees, and references for the symbol \"$ARGUMENTS\"\n- `query` tool for broader concept searches\n\nPresent the results showing:\n- All references to the symbol\n- Callers (functions that call this symbol)\n- Callees (functions that this symbol calls)\n- File locations with line numbers",
+      "description": "Look up symbol references using GitNexus MCP"
+    },
+    "gitnexus-impact": {
+      "template": "Analyze the impact of changing a symbol using the gitnexus MCP server.\n\nUsage: `/gitnexus-impact <symbol-or-file>`\n\nUse the gitnexus MCP tools:\n- `impact` tool to analyze blast radius for \"$ARGUMENTS\"\n- `context` tool for dependency mapping\n\nPresent the results showing:\n- Direct dependents (things that would break)\n- Indirect dependents (things that might be affected)\n- Risk assessment (high/medium/low)\n- Suggested mitigation strategies",
+      "description": "Analyze impact of changing a symbol via GitNexus MCP"
+    },
+    "graphify-update": {
+      "template": "Update the Graphify knowledge graph to reflect recent code changes.\n\nRun the following command to perform an AST-only update (no API cost):\n\n```bash\npy -3 -m graphify update .\n```\n\nAfter the update, use the graphify MCP tools to verify:\n- Use `graph_stats` to check the updated graph statistics\n- Use `query_graph` to verify new nodes and edges\n\nReport the update status to the user, including any new nodes, edges, or communities detected.",
+      "description": "Update the Graphify knowledge graph"
+    },
+    "graphify-query": {
+      "template": "Query the Graphify knowledge graph to understand architecture and relationships.\n\nUsage: `/graphify-query <your question>`\n\nUse the graphify MCP tools:\n- `query_graph` to search for concepts matching \"$ARGUMENTS\"\n- `get_neighbors` to explore related nodes\n- `get_community` to understand module groupings\n- `shortest_path` to find how two concepts connect\n- `god_nodes` to find the most connected abstractions\n\nPresent the results in a clear, structured format showing:\n- Which communities are involved\n- What god nodes are connected\n- Any surprising connections found",
+      "description": "Query the Graphify knowledge graph via MCP"
+    },
+    "codebase-memory-query": {
+      "template": "Query the codebase-memory-mcp max-coverage graph for deep code intelligence.\n\nUsage: `/codebase-memory-query <your question>`\n\nUse the codebase-memory MCP tools:\n1. `search_graph` to find functions, classes, routes, and variables matching \"$ARGUMENTS\"\n2. `trace_path` to trace who calls a function or what it calls\n3. `get_code_snippet` to read specific function/class source code\n4. `query_graph` for complex Cypher queries\n5. `get_architecture` for high-level project summary\n\nPresent the results showing:\n- Entity relationships found\n- Function call chains\n- Cross-service connections\n- State iterations and hooks",
+      "description": "Query codebase-memory-mcp max-coverage graph"
+    }
+  },
+  "instructions": [
+    "AGENTS.md",
+    "GEMINI.md",
+    "CLAUDE.md"
   ]
 }

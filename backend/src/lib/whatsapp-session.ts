@@ -41,41 +41,102 @@ export const sessionRegistry = new SessionRegistry()
 
 /**
  * OpenWA Gateway — communicates with the OpenWA container via HTTP.
+ *
+ * The OpenWA container (openwa/wa-automate v4.76.0) exposes one EasyAPI
+ * endpoint per client method: POST /<camelCaseMethodName> with an
+ * `{ args: { ... } }` (or `{ args: [...] }`) envelope. Every response is
+ * `{ success: boolean, response: <value> }` or
+ * `{ success: false, error: { name, message, data } }`.
  */
 const OPENWA_URL = process.env.OPENWA_URL || "http://openwa:8002"
 
-export async function startSession(sessionKey: string): Promise<{ qr?: string; status: SessionStatus }> {
+/**
+ * Maps the OpenWA/WAPI connection state string onto our session status.
+ * WAPI states: CONNECTED, WAITING_FOR_QR_CODE, PAIRING, TIMEOUT, UNPAIRED,
+ * DISCONNECTED, CONFLICT, DEPRECATED_VERSION, UNLAUNCHED...
+ */
+function mapConnectionState(state?: string): SessionStatus {
+  switch ((state || "").toUpperCase()) {
+    case "CONNECTED":
+      return "connected"
+    case "WAITING_FOR_QR_CODE":
+    case "PAIRING":
+      return "qr_ready"
+    case "UNPAIRED":
+      return "disconnected"
+    case "CONFLICT":
+    case "DEPRECATED_VERSION":
+    case "UNLAUNCHED":
+      return "error"
+    default:
+      return "connecting"
+  }
+}
+
+/** Low-level helper: POST a method with args body, return parsed response. */
+async function callOpenWA(
+  method: string,
+  args: Record<string, unknown> = {},
+  timeoutMs = 15000
+): Promise<{ ok: boolean; response?: any; error?: { name?: string; message?: string } }> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(`${OPENWA_URL}/session/start`, {
+    const res = await fetch(`${OPENWA_URL}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionKey }),
+      body: JSON.stringify({ args }),
+      signal: ctrl.signal,
     })
-    const data = (await res.json()) as any
-    return { qr: data.qr, status: data.status || "connecting" }
+    const data = (await res.json().catch(() => ({}))) as any
+    if (res.status === 404) {
+      return { ok: false, error: { name: "MethodNotFound", message: `OpenWA has no method ${method}` } }
+    }
+    if (!res.ok || data.success === false) {
+      return { ok: false, error: data.error || { message: `OpenWA method ${method} failed (HTTP ${res.status})` } }
+    }
+    return { ok: true, response: data.response }
   } catch (err) {
-    console.error("DivineKart WhatsApp start session error:", err)
-    return { status: "error" }
+    console.error(`DivineKart WhatsApp OpenWA call ${method} failed:`, err)
+    return { ok: false, error: { name: "NetworkError", message: (err as Error).message } }
+  } finally {
+    clearTimeout(timer)
   }
+}
+
+/** Normalize the WAPI connection state response (string or nested object). */
+function getStateFromResponse(response: unknown): SessionStatus {
+  let raw: string | undefined
+  if (typeof response === "string") {
+    raw = response
+  } else if (response && typeof response === "object") {
+    const obj = response as Record<string, unknown>
+    raw = (obj.state as string) || (obj.text as string) || undefined
+  }
+  return mapConnectionState(raw)
+}
+
+/**
+ * "Start" = make sure the container is reachable and report the connection
+ * state. The OpenWA container auto-starts its single baked-in session on
+ * boot; the QR code is delivered asynchronously via the `qr` event webhook,
+ * which the backend webhook route stores into `sessionRegistry`.
+ */
+export async function startSession(sessionKey: string): Promise<{ qr?: string; status: SessionStatus }> {
+  const res = await callOpenWA("getConnectionState", {})
+  // If the container already holds a QR (stored by the webhook), surface it.
+  const known = sessionRegistry.all().find((s) => s.session_key === sessionKey)
+  return { qr: known?.qr_code, status: res.ok ? getStateFromResponse(res.response) : "error" }
 }
 
 export async function getSessionStatus(sessionKey: string): Promise<SessionStatus> {
-  try {
-    const res = await fetch(`${OPENWA_URL}/session/${sessionKey}/status`)
-    const data = (await res.json()) as any
-    return data.status || "disconnected"
-  } catch {
-    return "disconnected"
-  }
+  const res = await callOpenWA("getConnectionState", {})
+  return res.ok ? getStateFromResponse(res.response) : "disconnected"
 }
 
 export async function stopSession(sessionKey: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${OPENWA_URL}/session/${sessionKey}/stop`, { method: "POST" })
-    return res.ok
-  } catch {
-    return false
-  }
+  const res = await callOpenWA("kill", { reason: `admin stop requested for ${sessionKey}` })
+  return res.ok
 }
 
 export async function sendMessage(
@@ -83,18 +144,13 @@ export async function sendMessage(
   to: string,
   message: string
 ): Promise<{ success: boolean; messageId?: string }> {
-  try {
-    const res = await fetch(`${OPENWA_URL}/send/text`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionKey, to, message }),
-    })
-    const data = (await res.json()) as any
-    return { success: res.ok, messageId: data.messageId }
-  } catch (err) {
-    console.error("DivineKart WhatsApp send error:", err)
+  const res = await callOpenWA("sendText", { to, content: message })
+  if (!res.ok) {
+    console.error("DivineKart WhatsApp send error:", res.error)
     return { success: false }
   }
+  const messageId = typeof res.response === "string" ? res.response : res.response?.id || undefined
+  return { success: true, messageId }
 }
 
 export async function sendImage(
@@ -103,16 +159,8 @@ export async function sendImage(
   imageUrl: string,
   caption?: string
 ): Promise<{ success: boolean }> {
-  try {
-    const res = await fetch(`${OPENWA_URL}/send/image`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionKey, to, image: imageUrl, caption }),
-    })
-    return { success: res.ok }
-  } catch {
-    return { success: false }
-  }
+  const res = await callOpenWA("sendFileFromUrl", { to, url: imageUrl, caption: caption || "", filename: "image.jpg" })
+  return { success: res.ok }
 }
 
 /**

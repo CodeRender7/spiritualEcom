@@ -12,6 +12,8 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
   && pnpm install --frozen-lockfile --network-concurrency=4 --fetch-retries=10 --fetch-retry-mintimeout=5000 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 
 FROM deps AS builder
+ARG CACHEBUST=1
+RUN echo "cachebust=${CACHEBUST}"
 COPY backend ./backend
 RUN pnpm --filter divinekart-backend run build
 

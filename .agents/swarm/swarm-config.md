@@ -155,6 +155,40 @@ Multiple agents explore different facets simultaneously, then converge.
 
 ---
 
+## Model Provider — OmniRoute
+
+All agents route inference through **OmniRoute** (`http://localhost:20128/v1`). Each persona is assigned an optimal model based on task type:
+
+### Per-Persona Model Assignments
+
+| Agent Persona | Primary Model | Fallback | Rationale |
+|---------------|---------------|----------|-----------|
+| 🏗️ **Architect** | `auto/best-reasoning` | `auto/smart` | Deep reasoning for design decisions and architecture review |
+| 🔍 **Analyst** | `auto/best-coding` | `auto` | Code-aware analysis for quality, pollution, complexity |
+| 🛠️ **Builder** | `auto/best-coding` | `auto/coding` | Quality-first code generation for implementation |
+| 🐛 **Debugger** | `auto/best-reasoning` | `auto/best-coding` | Deep reasoning for root cause analysis |
+| 📋 **Planner** | `auto/best-chat` | `auto/best-reasoning` | Conversational for grilling, planning, spec writing |
+| 🔬 **Researcher** | `auto/best-reasoning` | `auto/smart` | Deep reasoning + exploration for investigation |
+| 📚 **Teacher** | `auto/best-chat` | `auto` | Conversational for teaching and explanation |
+| 🚦 **Router** | `auto/best-fast` | `auto` | Lowest latency for quick persona dispatch |
+
+### Available OmniRoute Models
+
+| Model ID | Optimizes For | Used By |
+|----------|---------------|---------|
+| `auto/best-coding` | 🧑‍💻 Quality-first code generation | Builder, Analyst |
+| `auto/best-reasoning` | 🔭 Deep reasoning and analysis | Architect, Debugger, Researcher |
+| `auto/best-fast` | ⚡ Lowest latency | Router |
+| `auto/best-vision` | 👁️ Multimodal / UI review | Any (on demand) |
+| `auto/best-chat` | 💬 Conversational quality | Planner, Teacher |
+| `auto` | 🎯 Balanced default (LKGP) | Fallback for all |
+| `auto/coding` | 🧑‍💻 Code generation (cost-aware) | Builder fallback |
+| `auto/fast` | ⚡ Speed-first | Quick fixes |
+| `auto/cheap` | 💰 Cost-optimized | Batch operations |
+| `auto/smart` | 🔭 Quality + 10% exploration | Architect/Researcher fallback |
+
+---
+
 ## MCP Server Integration Map
 
 | MCP Server | Agent Personas | Key Tools |
@@ -175,3 +209,4 @@ Multiple agents explore different facets simultaneously, then converge.
 5. **Issue tracking**: All work products flow through `.scratch/` (local) or GitHub issues
 6. **Handoff protocol**: Use `/handoff` when transferring between agent sessions
 7. **Domain consistency**: `/grill-with-docs` and `/domain-modeling` update CONTEXT.md and ADRs inline
+8. **Model routing**: All inference via OmniRoute — persona picks primary model, auto-fallback on quota/failure

@@ -48,6 +48,21 @@ Agents operate as a swarm using three execution patterns. See `.agents/swarm/swa
 - Use for: Architecture review, code health assessment
 
 **Agent personas**: Architect, Analyst, Builder, Debugger, Planner, Researcher, Teacher, Router. Use `/ask-matt` when uncertain which fits.
+ 
+### OmniRoute (AI Gateway)
+
+All agents route inference through OmniRoute (`http://localhost:20128/v1`). Default model: `auto/best-coding`.
+
+Per-persona model assignments (full details in `.agents/swarm/swarm-config.md`):
+
+- `auto/best-coding` — quality-first code generation (Builder, Analyst)
+- `auto/best-reasoning` — deep reasoning for design and debugging (Architect, Debugger, Researcher)
+- `auto/best-fast` — lowest latency for quick dispatch (Router)
+- `auto/best-chat` — conversational quality for grilling and planning (Planner, Teacher)
+- `auto/best-vision` — multimodal UI review (any agent, on demand)
+- `auto` — balanced fallback for all agents
+
+Dashboard: `http://localhost:20128` — live usage, quota, cost analytics.
 
 ### Code discovery rules
 
