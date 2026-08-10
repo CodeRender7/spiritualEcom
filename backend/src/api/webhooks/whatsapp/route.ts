@@ -103,7 +103,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { event, data, sessionKey } = parsed
 
   try {
-    if (event === "qr") {
+    // OpenWA's QRManager emits under three namespaces: plain "qr" (PNG), "qrData"
+    // (raw QR string) and "qrUrl" (link code URL when ezqr is on). The forwarded
+    // lifecycle payload uses the same namespace verbatim, so accept any qr*.
+    if (event === "qr" || event.startsWith("qr")) {
       const session = resolveSession(sessionKey)
       if (session) {
         await updateSessionRecord(req.scope, session.id, {

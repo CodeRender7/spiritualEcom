@@ -47,8 +47,20 @@ export const sessionRegistry = new SessionRegistry()
  * `{ args: { ... } }` (or `{ args: [...] }`) envelope. Every response is
  * `{ success: boolean, response: <value> }` or
  * `{ success: false, error: { name, message, data } }`.
+ *
+ * Multi-session routing: the container runs one client per session id from
+ * its WA_SESSIONS env. Named sessions are reachable at `/<sessionId>/<method>`;
+ * the legacy session id "session" owns the unprefixed `/<method>` routes.
+ * Session keys in this backend are the OpenWA session ids themselves, so
+ * `callOpenWA(sessionKey, ...)` maps 1:1 onto the container's routes.
  */
 const OPENWA_URL = process.env.OPENWA_URL || "http://openwa:8002"
+
+/** Route a method for a given session key; the legacy "session" stays unprefixed. */
+function routePath(sessionKey: string | undefined, method: string): string {
+  if (!sessionKey || sessionKey === "session") return `/${method}`
+  return `/${sessionKey}/${method}`
+}
 
 /**
  * Maps the OpenWA/WAPI connection state string onto our session status.
@@ -77,12 +89,14 @@ function mapConnectionState(state?: string): SessionStatus {
 async function callOpenWA(
   method: string,
   args: Record<string, unknown> = {},
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  sessionKey?: string
 ): Promise<{ ok: boolean; response?: any; error?: { name?: string; message?: string } }> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  const url = `${OPENWA_URL}${routePath(sessionKey, method)}`
   try {
-    const res = await fetch(`${OPENWA_URL}/${method}`, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ args }),
@@ -123,19 +137,19 @@ function getStateFromResponse(response: unknown): SessionStatus {
  * which the backend webhook route stores into `sessionRegistry`.
  */
 export async function startSession(sessionKey: string): Promise<{ qr?: string; status: SessionStatus }> {
-  const res = await callOpenWA("getConnectionState", {})
+  const res = await callOpenWA("getConnectionState", {}, 15000, sessionKey)
   // If the container already holds a QR (stored by the webhook), surface it.
   const known = sessionRegistry.all().find((s) => s.session_key === sessionKey)
   return { qr: known?.qr_code, status: res.ok ? getStateFromResponse(res.response) : "error" }
 }
 
 export async function getSessionStatus(sessionKey: string): Promise<SessionStatus> {
-  const res = await callOpenWA("getConnectionState", {})
+  const res = await callOpenWA("getConnectionState", {}, 15000, sessionKey)
   return res.ok ? getStateFromResponse(res.response) : "disconnected"
 }
 
 export async function stopSession(sessionKey: string): Promise<boolean> {
-  const res = await callOpenWA("kill", { reason: `admin stop requested for ${sessionKey}` })
+  const res = await callOpenWA("kill", { reason: `admin stop requested for ${sessionKey}` }, 15000, sessionKey)
   return res.ok
 }
 
@@ -144,7 +158,7 @@ export async function sendMessage(
   to: string,
   message: string
 ): Promise<{ success: boolean; messageId?: string }> {
-  const res = await callOpenWA("sendText", { to, content: message })
+  const res = await callOpenWA("sendText", { to, content: message }, 15000, sessionKey)
   if (!res.ok) {
     console.error("DivineKart WhatsApp send error:", res.error)
     return { success: false }
@@ -159,7 +173,12 @@ export async function sendImage(
   imageUrl: string,
   caption?: string
 ): Promise<{ success: boolean }> {
-  const res = await callOpenWA("sendFileFromUrl", { to, url: imageUrl, caption: caption || "", filename: "image.jpg" })
+  const res = await callOpenWA(
+    "sendFileFromUrl",
+    { to, url: imageUrl, caption: caption || "", filename: "image.jpg" },
+    15000,
+    sessionKey
+  )
   return { success: res.ok }
 }
 

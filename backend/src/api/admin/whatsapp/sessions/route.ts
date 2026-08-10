@@ -24,12 +24,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { name } = req.body as { name: string }
+  const { name, sessionId } = req.body as { name: string; sessionId?: string }
   if (!name?.trim()) {
     return res.status(400).json({ message: "Session name is required" })
   }
 
-  const sessionKey = `dk_${name.toLowerCase().replace(/\s+/g, "_")}_${Date.now().toString(36)}`
+  // The session_key is the OpenWA session id itself — it must match one of the
+  // session ids the OpenWA container boots (WA_SESSIONS env). Explicit
+  // sessionId wins; otherwise slugify the name (host/sales/...).
+  const sessionKey = (sessionId || name)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+  if (!sessionKey) {
+    return res.status(400).json({ message: "Could not derive a session id from name" })
+  }
+  if (sessionRegistry.all().some((s) => s.session_key === sessionKey)) {
+    return res.status(409).json({ message: `Session "${sessionKey}" already exists` })
+  }
+
   const session = await createSessionRecord(req.scope, name, sessionKey)
   return res.json({ session })
 }
