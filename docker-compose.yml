@@ -231,6 +231,9 @@ services:
       dockerfile: openwa.Dockerfile
     image: divinekart-openwa:patched
     container_name: divinekart-openwa
+    # Optional service: NOT started by plain `docker compose up`. Start it
+    # explicitly with:  docker compose --profile openwa up -d
+    profiles: ["openwa"]
     shm_size: '2gb'
     restart: unless-stopped
     command: /usr/src/app/openwa-multisession.cjs --no-update
