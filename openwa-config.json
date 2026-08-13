@@ -7,6 +7,7 @@
   "host": "0.0.0.0",
   "port": 8002,
   "inDocker": true,
+  "timeout": 180000,
   "qrTimeout": 0,
   "popup": true,
   "debug": true,
@@ -27,6 +28,7 @@
     "--disable-gpu"
   ],
   "puppeteerConfig": {
-    "dumpio": true
+    "dumpio": true,
+    "timeout": 180000
   }
 }

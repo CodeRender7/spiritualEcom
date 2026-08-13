@@ -56,6 +56,23 @@ if (process.env.WA_POPUP !== "false" && process.env.WA_POPUP !== "0") {
   process.env.WA_POPUP = String(Number(process.env.WA_POPUP_PORT || 7000));
 }
 
+// The session profile volume survives container recreates, so Chrome's
+// Singleton* lock files from a previous (possibly killed) container persist.
+// Chrome then refuses to launch ("profile appears to be in use") and the
+// session dies instantly. Clear any stale locks before create() runs.
+const sessionDirs = [
+  ...SESSIONS.map((id) => `/sessions/_IGNORE_${id}`),
+  "/sessions/_IGNORE_session",
+  "/sessions/_IGNORE_smoketest",
+];
+for (const dir of new Set(sessionDirs)) {
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith("Singleton")) fs.unlinkSync(`${dir}/${f}`);
+    }
+  } catch (e) { /* dir missing — nothing to clean */ }
+}
+
 /** WA_PORT -> port, WA_USE_CHROME -> useChrome (mirrors stock camelization). */
 function camelize(envKey) {
   const parts = envKey.replace(/^WA_/, "").toLowerCase().split("_");

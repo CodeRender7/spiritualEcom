@@ -263,7 +263,8 @@ services:
       - openwa_logs:/logs
       - ./openwa-config.json:/config/config.json:ro
     ports:
-      - "8002:8002"   # QR code web interface + API
+      - "8002:8002"   # EasyAPI (session methods + lifecycle webhooks target)
+      - "7000:7000"   # popup QR scan page (open http://localhost:7000 to pair a phone)
     healthcheck:
       # Probe a real EasyAPI route instead of the popup page. The API only
       # exists while EasyAPI is mounted (browser up). Without procps the

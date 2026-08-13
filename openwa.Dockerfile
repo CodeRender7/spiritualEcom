@@ -18,6 +18,14 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome*.list /etc/apt/trusted.gpg.d/goo
 # The base image sets USER owauser; procps binaries remain world-executable.
 USER owauser
 
+# Raise Puppeteer's launch + WA page navigation timeouts. The base open-wa
+# hardcodes 30s defaults (waitForWSEndpoint + page.goto), but a cold Chrome
+# profile on a slow host boots in ~40-120s, so create() times out and the
+# session never mounts. Patch both in the installed dist (openwa-config.json
+# raises the launch timeout; this raises the WA login page navigation timeout).
+RUN sed -i 's|const webRes = yield waPage.goto(puppeteer_config_1.puppeteerConfig.WAUrl);|const webRes = yield waPage.goto(puppeteer_config_1.puppeteerConfig.WAUrl, { timeout: 180000 });|' \
+    /usr/src/app/node_modules/@open-wa/wa-automate/dist/controllers/browser.js
+
 # Multi-session entrypoint (replaces the stock single-session EasyAPI CLI).
 # Runs one client per WA_SESSIONS id and routes /<sessionId>/<method> paths.
 # .cjs required: the base image package.json has "type": "module".
