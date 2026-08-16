@@ -1,0 +1,31 @@
+name: Documentation change
+description: Request a change to the documentation
+title: "[docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the docs! Please tell us what needs to change.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Documentation category
+      description: Which part of the documentation is affected?
+      options:
+        - README
+        - Setup guides (VPS / infra / payments / security)
+        - Architecture / flow diagrams
+        - API reference
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: Describe the change
+      description: What is incorrect, missing, or unclear, and how should it be fixed?
+    validations:
+      required: true

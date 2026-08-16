@@ -1,0 +1,35 @@
+# Path-based PR labeling.
+# Docs: https://github.com/actions/labeler
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file: ["backend/**"]
+
+storefront:
+  - changed-files:
+      - any-glob-to-any-file: ["storefront/**"]
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "*.md"]
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docker-compose*.yml"
+          - "Dockerfile*"
+          - ".github/workflows/**"
+          - "pnpm-workspace.yaml"
+          - "turbo.json"
+
+whatsapp:
+  - changed-files:
+      - any-glob-to-any-file: ["backend/src/api/**/whatsapp/**", "backend/src/lib/whatsapp-*"]
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ["**/package.json", "**/pnpm-lock.yaml", "pnpm-workspace.yaml"]
