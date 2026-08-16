@@ -8,7 +8,10 @@ import { markConversationRead } from "../../../../../../../lib/whatsapp-chat"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { phone } = req.params
-  const sessionId = (req.body?.sessionId as string) || (req.query.sessionId as string) || ""
+  const sessionId =
+    ((req.body || {}) as { sessionId?: string }).sessionId ||
+    ((req.query || {}) as { sessionId?: string }).sessionId ||
+    ""
   if (!sessionId) {
     return res.status(400).json({ message: "sessionId is required" })
   }

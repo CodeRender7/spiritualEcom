@@ -89,7 +89,7 @@ async function touchBroadcastDeliverability(
   ack: unknown
 ) {
   try {
-    const mod = await import("../../../lib/whatsapp-broadcast")
+    const mod = await import("../../../lib/whatsapp-broadcast.js")
     if (typeof mod?.handleBroadcastDeliverability === "function") {
       const status = mapAckToStatus(ack)
       await mod.handleBroadcastDeliverability?.(container, {
@@ -188,8 +188,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.json({ received: true })
     }
 
-    console.warn("DivineKart WhatsApp webhook: unhandled event", event, parsed)
-    return res.status(400).json({ message: "Unknown event type" })
+    // OpenWA forwards every event (ef: *) — including lifecycle noise we don't
+    // model (onmessagedeleted, onchatstatechange, battery, typing...) and
+    // payloads with no event field at all. A 400 makes OpenWA treat the
+    // delivery as failed, so it stops forwarding real events. Acknowledge
+    // anything unknown instead; log at debug level for triage.
+    console.debug("DivineKart WhatsApp webhook: unhandled event", event, parsed)
+    return res.json({ received: true })
   } catch (err) {
     console.error("DivineKart WhatsApp webhook processing failed:", err)
     return res.json({ received: true })

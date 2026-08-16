@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Container,
-  Heading,
   Input,
   Select,
   StatusBadge,
@@ -15,6 +14,7 @@ import {
   Textarea,
   toast,
 } from "@medusajs/ui"
+import { AdminModal, PageHeader, StatCard, saffron, useConfirm } from "../../../components"
 
 type BroadcastStatus =
   | "draft"
@@ -108,6 +108,8 @@ export default function WhatsAppBroadcastsPage() {
   const [detailFilter, setDetailFilter] = useState<string>("")
   const [detailLoading, setDetailLoading] = useState(false)
 
+  const confirm = useConfirm()
+
   useEffect(() => {
     fetchBroadcasts()
     const interval = setInterval(fetchBroadcasts, 5000) // Poll every 5s
@@ -121,7 +123,7 @@ export default function WhatsAppBroadcastsPage() {
   async function fetchBroadcasts() {
     try {
       const res = await fetch("/admin/whatsapp/broadcasts?take=100", { credentials: "same-origin" })
-      const data = await res.json()
+      const data = (await res.json()) as { broadcasts?: Broadcast[] }
       setBroadcasts(data.broadcasts || [])
     } catch (err) {
       console.error("Failed to fetch broadcasts:", err)
@@ -134,7 +136,7 @@ export default function WhatsAppBroadcastsPage() {
     setDetailLoading(true)
     try {
       const res = await fetch(`/admin/whatsapp/broadcasts/${id}`, { credentials: "same-origin" })
-      const data = await res.json()
+      const data = (await res.json()) as { broadcast?: Broadcast | null }
       setDetail(data.broadcast || null)
     } catch (err) {
       console.error("Failed to fetch broadcast detail:", err)
@@ -150,7 +152,7 @@ export default function WhatsAppBroadcastsPage() {
         `/admin/whatsapp/broadcasts/${broadcastId}/recipients?take=200${q}`,
         { credentials: "same-origin" }
       )
-      const data = await res.json()
+      const data = (await res.json()) as { recipients?: Recipient[] }
       setDetailRecipients(data.recipients || [])
     } catch (err) {
       console.error("Failed to fetch recipients:", err)
@@ -188,7 +190,7 @@ export default function WhatsAppBroadcastsPage() {
         }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
+        const data = (await res.json().catch(() => ({}))) as { message?: string }
         throw new Error(data.message || "Failed to create broadcast")
       }
       toast.success("Broadcast created")
@@ -207,7 +209,13 @@ export default function WhatsAppBroadcastsPage() {
   }
 
   async function cancelBroadcast(b: Broadcast) {
-    if (!confirm(`Cancel broadcast "${b.name}"?`)) return
+    const ok = await confirm({
+      title: "Cancel broadcast",
+      description: `Cancel broadcast "${b.name}"? Queued messages will not be sent.`,
+      confirmText: "Cancel broadcast",
+      variant: "danger",
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/admin/whatsapp/broadcasts/${b.id}`, {
         method: "POST",
@@ -224,6 +232,12 @@ export default function WhatsAppBroadcastsPage() {
   }
 
   async function resendBroadcast(b: Broadcast) {
+    const ok = await confirm({
+      title: "Resend broadcast",
+      description: `Resend broadcast "${b.name}" to failed recipients?`,
+      confirmText: "Resend",
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/admin/whatsapp/broadcasts/${b.id}`, {
         method: "POST",
@@ -261,12 +275,18 @@ export default function WhatsAppBroadcastsPage() {
 
   return (
     <Container>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <Heading level="h1">WhatsApp Broadcasts</Heading>
-        <Button onClick={openCreate} style={{ backgroundColor: "#F97316" }}>
-          + New Broadcast
-        </Button>
-      </div>
+      <PageHeader
+        title="WhatsApp Broadcasts"
+        description="Create and manage WhatsApp broadcast campaigns."
+        actions={
+          <Button
+            onClick={openCreate}
+            style={{ backgroundColor: saffron.DEFAULT, color: saffron.ON }}
+          >
+            + New Broadcast
+          </Button>
+        }
+      />
 
       <Table>
         <Table.Header>
@@ -283,8 +303,8 @@ export default function WhatsAppBroadcastsPage() {
         <Table.Body>
           {broadcasts.length === 0 && (
             <Table.Row>
-              <td colSpan={7} style={{ padding: "16px", textAlign: "center" }}>
-                <Text style={{ color: "#6b7280" }}>
+              <td colSpan={7} className="p-4 text-center">
+                <Text className="text-ui-fg-subtle">
                   No broadcasts yet. Create one to reach your customers.
                 </Text>
               </td>
@@ -293,7 +313,11 @@ export default function WhatsAppBroadcastsPage() {
           {broadcasts.map((b) => (
             <Table.Row key={b.id}>
               <Table.Cell>
-                <button onClick={() => openDetail(b)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#2563eb", fontFamily: "inherit" }}>
+                <button
+                  onClick={() => openDetail(b)}
+                  className="text-ui-fg-interactive"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+                >
                   {b.name}
                 </button>
               </Table.Cell>
@@ -307,7 +331,7 @@ export default function WhatsAppBroadcastsPage() {
               <Table.Cell>{b.recipient_summary?.failed || 0}</Table.Cell>
               <Table.Cell>{b.scheduled_at ? new Date(b.scheduled_at).toLocaleString() : "—"}</Table.Cell>
               <Table.Cell>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div className="flex gap-2">
                   {(b.status === "partial_failed" || b.status === "failed") && (
                     <Button size="small" onClick={() => resendBroadcast(b)}>
                       Resend
@@ -326,182 +350,149 @@ export default function WhatsAppBroadcastsPage() {
       </Table>
 
       {/* Create Broadcast Modal */}
-      {showCreateModal && (
-        <div style={modalOverlayStyle}>
-          <div style={modalStyle}>
-            <Heading level="h2">New Broadcast</Heading>
-            <Input
-              placeholder="Campaign name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              style={{ marginTop: "16px" }}
-            />
+      <AdminModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        title="New Broadcast"
+        description="Reach customers with a WhatsApp message."
+        footer={
+          <>
+            <Button
+              onClick={createBroadcast}
+              disabled={creating}
+              style={{ backgroundColor: saffron.DEFAULT, color: saffron.ON }}
+            >
+              {creating ? "Creating…" : "Create"}
+            </Button>
+            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            placeholder="Campaign name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <Textarea
+            placeholder="Message"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            rows={4}
+          />
+          <Input
+            placeholder="Image URL (optional)"
+            value={newImageUrl}
+            onChange={(e) => setNewImageUrl(e.target.value)}
+          />
+          <div>
+            <Text className="mb-1 text-xs text-ui-fg-subtle">Audience</Text>
+            <Select value={newAudienceType} onValueChange={(v) => setNewAudienceType(v)}>
+              <Select.Trigger className="w-full">
+                <Select.Value placeholder="Select audience" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="manual_numbers">Manual numbers</Select.Item>
+                <Select.Item value="all_customers">All customers</Select.Item>
+                <Select.Item value="customers_with_orders">Customers with orders</Select.Item>
+              </Select.Content>
+            </Select>
+          </div>
+          {newAudienceType === "manual_numbers" && (
             <Textarea
-              placeholder="Message"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              rows={4}
-              style={{ marginTop: "12px" }}
+              placeholder="Phone numbers, one per line (e.g. +919876543210)"
+              value={newRecipients}
+              onChange={(e) => setNewRecipients(e.target.value)}
+              rows={3}
             />
-            <Input
-              placeholder="Image URL (optional)"
-              value={newImageUrl}
-              onChange={(e) => setNewImageUrl(e.target.value)}
-              style={{ marginTop: "12px" }}
-            />
-            <div style={{ marginTop: "12px" }}>
-              <Text style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Audience</Text>
-              <Select value={newAudienceType} onValueChange={(v) => setNewAudienceType(v)}>
-                <Select.Trigger style={{ width: "100%" }}>
-                  <Select.Value placeholder="Select audience" />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="manual_numbers">Manual numbers</Select.Item>
-                  <Select.Item value="all_customers">All customers</Select.Item>
-                  <Select.Item value="customers_with_orders">Customers with orders</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-            {newAudienceType === "manual_numbers" && (
-              <Textarea
-                placeholder="Phone numbers, one per line (e.g. +919876543210)"
-                value={newRecipients}
-                onChange={(e) => setNewRecipients(e.target.value)}
-                rows={3}
-                style={{ marginTop: "12px" }}
-              />
-            )}
-            <Input
-              type="datetime-local"
-              placeholder="Schedule (optional — empty sends now)"
-              value={newScheduledAt}
-              onChange={(e) => setNewScheduledAt(e.target.value)}
-              style={{ marginTop: "12px" }}
-            />
-            <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
-              <Button onClick={createBroadcast} disabled={creating} style={{ backgroundColor: "#F97316" }}>
-                {creating ? "Creating…" : "Create"}
-              </Button>
-              <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
+          )}
+          <Input
+            type="datetime-local"
+            placeholder="Schedule (optional — empty sends now)"
+            value={newScheduledAt}
+            onChange={(e) => setNewScheduledAt(e.target.value)}
+          />
         </div>
-      )}
+      </AdminModal>
 
-      {/* Detail Drawer */}
-      {detail && (
-        <div style={modalOverlayStyle}>
-          <div style={{ ...modalStyle, maxWidth: "700px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Heading level="h2">{detail.name}</Heading>
-              <Button variant="secondary" size="small" onClick={() => setDetail(null)}>
-                Close
-              </Button>
-            </div>
+      {/* Detail Modal */}
+      <AdminModal
+        open={Boolean(detail)}
+        onOpenChange={(open) => {
+          if (!open) setDetail(null)
+        }}
+        title={detail?.name || ""}
+        wide
+      >
+        {detail && (
+          detailLoading ? (
+            <Text className="text-ui-fg-subtle">Loading…</Text>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <StatusBadge color={STATUS_BADGE_COLORS[detail.status]}>{STATUS_LABELS[detail.status]}</StatusBadge>
+                <Badge>{AUDIENCE_LABELS[detail.audience_type] || detail.audience_type}</Badge>
+              </div>
+              <Text className="whitespace-pre-wrap">{detail.message}</Text>
+              {detail.image_url && (
+                <img src={detail.image_url} alt="Broadcast media" style={{ maxWidth: 200, borderRadius: 8 }} />
+              )}
+              <div className="grid grid-cols-5 gap-3">
+                <StatCard label="Sent" value={detail.recipient_summary?.sent || 0} />
+                <StatCard label="Failed" value={detail.recipient_summary?.failed || 0} />
+                <StatCard label="Delivered" value={detail.recipient_summary?.delivered || 0} />
+                <StatCard label="Read" value={detail.recipient_summary?.read || 0} />
+                <StatCard label="Queued" value={detail.recipient_summary?.queued || 0} />
+              </div>
 
-            {detailLoading ? (
-              <Text style={{ marginTop: "16px", color: "#6b7280" }}>Loading…</Text>
-            ) : (
-              <>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px" }}>
-                  <StatusBadge color={STATUS_BADGE_COLORS[detail.status]}>{STATUS_LABELS[detail.status]}</StatusBadge>
-                  <Badge>{AUDIENCE_LABELS[detail.audience_type] || detail.audience_type}</Badge>
-                </div>
-                <Text style={{ marginTop: "12px", whiteSpace: "pre-wrap" }}>{detail.message}</Text>
-                {detail.image_url && (
-                  <img src={detail.image_url} alt="Broadcast media" style={{ maxWidth: 200, borderRadius: 8, marginTop: 12 }} />
-                )}
-                <div style={{ display: "flex", gap: "24px", marginTop: "16px" }}>
-                  <Text style={{ fontSize: 13 }}>
-                    Sent: <strong>{detail.recipient_summary?.sent || 0}</strong>
-                  </Text>
-                  <Text style={{ fontSize: 13 }}>
-                    Failed: <strong>{detail.recipient_summary?.failed || 0}</strong>
-                  </Text>
-                  <Text style={{ fontSize: 13 }}>
-                    Delivered: <strong>{detail.recipient_summary?.delivered || 0}</strong>
-                  </Text>
-                  <Text style={{ fontSize: 13 }}>
-                    Read: <strong>{detail.recipient_summary?.read || 0}</strong>
-                  </Text>
-                  <Text style={{ fontSize: 13 }}>
-                    Queued: <strong>{detail.recipient_summary?.queued || 0}</strong>
-                  </Text>
-                </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Filter by status (queued/sent/delivered/read/failed)"
+                  value={detailFilter}
+                  onChange={(e) => setDetailFilter(e.target.value)}
+                />
+                <Button size="small" variant="secondary" onClick={() => fetchRecipients(detail.id, detailFilter.trim() || undefined)}>
+                  Apply
+                </Button>
+              </div>
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-                  <Input
-                    placeholder="Filter by status (queued/sent/delivered/read/failed)"
-                    value={detailFilter}
-                    onChange={(e) => setDetailFilter(e.target.value)}
-                  />
-                  <Button size="small" variant="secondary" onClick={() => fetchRecipients(detail.id, detailFilter.trim() || undefined)}>
-                    Apply
-                  </Button>
-                </div>
-
-                <Table style={{ marginTop: "16px" }}>
-                  <Table.Header>
+              <Table>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.HeaderCell>Phone</Table.HeaderCell>
+                    <Table.HeaderCell>Status</Table.HeaderCell>
+                    <Table.HeaderCell>WA Message ID</Table.HeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {detailRecipients.length === 0 && (
                     <Table.Row>
-                      <Table.HeaderCell>Phone</Table.HeaderCell>
-                      <Table.HeaderCell>Status</Table.HeaderCell>
-                      <Table.HeaderCell>WA Message ID</Table.HeaderCell>
+                      <td colSpan={3} className="p-4 text-center">
+                        <Text className="text-ui-fg-subtle">No recipients in this view.</Text>
+                      </td>
                     </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {detailRecipients.length === 0 && (
-                      <Table.Row>
-                        <td colSpan={3} style={{ padding: "16px", textAlign: "center" }}>
-                          <Text style={{ color: "#6b7280" }}>No recipients in this view.</Text>
-                        </td>
-                      </Table.Row>
-                    )}
-                    {detailRecipients.map((r) => (
-                      <Table.Row key={r.id}>
-                        <Table.Cell>{r.phone}</Table.Cell>
-                        <Table.Cell>
-                          <StatusBadge color={RECIPIENT_BADGE_COLORS[r.status]}>{r.status}</StatusBadge>
-                        </Table.Cell>
-                        <Table.Cell>{r.wa_message_id || "—"}</Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                  )}
+                  {detailRecipients.map((r) => (
+                    <Table.Row key={r.id}>
+                      <Table.Cell>{r.phone}</Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge color={RECIPIENT_BADGE_COLORS[r.status]}>{r.status}</StatusBadge>
+                      </Table.Cell>
+                      <Table.Cell>{r.wa_message_id || "—"}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table>
+            </div>
+          )
+        )}
+      </AdminModal>
     </Container>
   )
 }
 
 export const config = defineRouteConfig({
   label: "Broadcasts",
-  icon: "Megaphone",
 })
-
-const modalOverlayStyle: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(0,0,0,0.5)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 9999,
-}
-
-const modalStyle: React.CSSProperties = {
-  backgroundColor: "#fff",
-  borderRadius: "12px",
-  padding: "32px",
-  maxWidth: "500px",
-  width: "90%",
-  maxHeight: "90vh",
-  overflow: "auto",
-}

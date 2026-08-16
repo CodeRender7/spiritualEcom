@@ -5,17 +5,26 @@ import {
   DivineKartSettings,
   getStoreSettings,
   writeStoreSettings,
+  PAYMENT_PROVIDERS,
+  PAYMENT_PROVIDER_MODULE_IDS,
+  PaymentProviderConfig,
 } from "../../../lib/settings"
+
+const ProviderConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  priority: z.number().optional(),
+  key_id: z.string().optional(),
+  key_secret: z.string().optional(),
+  test_mode: z.boolean().optional(),
+})
 
 const AdminSettingsSchema = z.object({
   payments: z
-    .object({
-      cod_enabled: z.boolean().optional(),
-      razorpay_enabled: z.boolean().optional(),
-      razorpay_key_id: z.string().optional(),
-      razorpay_key_secret: z.string().optional(),
-      razorpay_test_mode: z.boolean().optional(),
-    })
+    .object(
+      Object.fromEntries(
+        PAYMENT_PROVIDERS.map((p) => [p, ProviderConfigSchema.optional()])
+      )
+    )
     .optional(),
   reviews: z
     .object({
@@ -69,7 +78,7 @@ export const POST = async (
 
   // Sync region payment-provider links so enable/disable toggles take effect:
   // customers only see providers linked to their region.
-  if (partial.payments && (partial.payments.cod_enabled !== undefined || partial.payments.razorpay_enabled !== undefined)) {
+  if (partial.payments) {
     await syncRegionProviders(req.scope, settings)
   }
 
@@ -81,14 +90,34 @@ async function syncRegionProviders(scope: any, settings: DivineKartSettings) {
   const regionModule = scope.resolve(Modules.REGION)
   const regions = await regionModule.listRegions({}, { select: ["id"] })
 
-  const providerId = (id: string) => `pp_${id}_${id}`
+  // Keys actually registered by installed provider modules.
+  // The awilix add-list only lives inside the payment module's container, so
+  // ask the payment module service for the registered providers instead.
+  let installed: string[] = []
+  try {
+    const paymentModule = scope.resolve(Modules.PAYMENT)
+    const providers = await paymentModule.listPaymentProviders(
+      { is_enabled: true },
+      { select: ["id"] }
+    )
+    installed = (providers ?? []).map((p: { id: string }) => p.id)
+  } catch {
+    installed = []
+  }
+
+  const providers = ["pp_system_default"]
+  for (const key of PAYMENT_PROVIDERS) {
+    const cfg: PaymentProviderConfig = settings.payments[key]
+    if (!cfg.enabled) continue
+    const providerKey = PAYMENT_PROVIDER_MODULE_IDS[key]
+    // Only link providers whose module is actually installed in this backend
+    // (e.g. payu/stripe/… arrive with T7). Linking a missing module makes the
+    // region update throw.
+    if (installed.includes(providerKey)) providers.push(providerKey)
+  }
 
   await Promise.all(
     regions.map(async (region: { id: string }) => {
-      const providers = ["pp_system_default"]
-      if (settings.payments.cod_enabled) providers.push(providerId("cod"))
-      if (settings.payments.razorpay_enabled) providers.push(providerId("razorpay"))
-
       const { updateRegionsWorkflow } = await import("@medusajs/medusa/core-flows")
       await updateRegionsWorkflow(scope).run({
         input: {
