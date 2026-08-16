@@ -1,0 +1,23 @@
+name: Other
+description: Anything that is not a bug, feature request, or documentation change
+title: "[other]: "
+labels: ["awaiting triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not create blank issues. Use this template for anything else — questions, discussions, feedback.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is your question or request?
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional information
+      description: Any extra context that helps us help you.

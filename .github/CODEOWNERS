@@ -1,0 +1,17 @@
+# Code Owners
+
+# Default owners for everything in the repo
+* @CodeRender7
+
+# CI/CD workflow changes require explicit review
+/.github/workflows/ @CodeRender7
+
+# Infrastructure and container changes
+/docker-compose.yml @CodeRender7
+/Dockerfile* @CodeRender7
+
+# Backend (Medusa) changes
+/backend/ @CodeRender7
+
+# Storefront (Next.js) changes
+/storefront/ @CodeRender7
