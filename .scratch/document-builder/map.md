@@ -1,0 +1,69 @@
+# Wayfinder Map: PDF Document Generator, Template Builder & Pipeline Notification Attachments
+
+- Labels: `wayfinder:map`
+- Effort: Ship a **PDF document generator** (waybill, transit memo, receipts, e-bill, payment receipt, invoice) with a **drag-and-drop template builder** in the DivineKart admin dashboard, driven by **`{{key:value}}` placeholders** with a configurable data-key catalog, whose templates bind to **business workflow pipeline stages** (BRM lifecycle, order, payment events) and dispatch as **attachments via email and WhatsApp**. Admin-role configurable end-to-end, no regression to any working functionality.
+- **Absorbs**: `.scratch/email-builder/map.md` (E1 email-template store is done and becomes the foundation; E2–E4 Unlayer editor, process-event binding, gallery seeding fold into this map's tickets).
+
+## Destination
+
+A unified **document + notification template system** in the DivineKart admin: an admin-role dashboard where a drag-and-drop **template builder** (per user: custom document designer on `@medusajs/ui` **and** Unlayer for email **and** dnd-kit/grid where fitting — combine as the builder architecture decides) lets the admin design **PDF document templates** (waybill, transit memo, receipt, e-bill, payment receipt, invoice) and **email templates** from a shared `{{key:value}}` placeholder catalog — keys typed and suggestive-configurable per event. A **server-side HTML→PDF engine (Puppeteer)** renders the document templates to real PDF files (replacing today's browser print-to-PDF). Templates **bind to pipeline stages** — BRM's 8 lifecycle events (activated, renewal_success, renewal_failure, grace_start, past_due, paused, cancelled, expiry_warning) plus order events (placed/shipped) and payment events (captured/refunded) — and the dispatcher **sends the generated PDF as an attachment** through a **real SMTP email transport** (nodemailer, configured in settings) and **WhatsApp** (OpenWA file send). Generated documents are **downloadable**: storefront order-detail + account history buttons, the existing backend invoice/waybill routes upgraded to real PDF, and admin-side preview/download. All configurable by the admin role. Verified end-to-end (typecheck + build green, live harness) with **no regression** to the BRM notification flow, WhatsApp channel, settings pages, or the storefront.
+
+## Notes
+
+- Domain: DivineKart Medusa v2.18 monorepo (`backend` + `storefront`), pnpm + turbo, docker compose at root. Sibling maps: `.scratch/email-builder` (absorbed), `.scratch/admin-console` (A2 kit, A5 brm-notify seam), `.scratch/advanced-commerce` (BRM engine, payment router).
+- Tracker: local markdown — map = `.scratch/document-builder/map.md`, tickets = `.scratch/document-builder/issues/NN-slug.md`, blocking wired by name.
+- **Execution pattern**: Harness (linear pipeline, blockers-first). Like the email-builder/admin-console maps, tickets here carry **execution** (they resolve with implementation + verification, not just decisions) — the user directive is to build and verify end-to-end, everything working without breaking existing functionality.
+- **User decisions (charted this session, 2026-08-17)**:
+  - **Relation to email-builder**: extend into ONE unified template system — documents + email share builder, placeholder catalog, and dispatch wiring; the email-builder map is absorbed/superseded.
+  - **PDF rendering**: server-side HTML→PDF via **Puppeteer** (Chromium in the backend container).
+  - **Builder tech**: combine — custom document designer on `@medusajs/ui` for PDF documents, **Unlayer** (`react-email-editor`) for email templates, dnd-kit/grid where a richer canvas helps. The builder ticket decides the exact division.
+  - **Pipelines**: BRM 8 events + order events (placed/shipped) + payment events (captured/refunded) — one generic event→template binding.
+  - **Email transport**: build real **SMTP** (nodemailer) in this effort — attachment dispatch works end-to-end.
+  - **Download surface**: storefront order detail + account history, backend routes, **and** admin-side preview/download.
+- **Current state to build on** (researched this session):
+  - **Template store precedent**: `backend/src/modules/email-template/` — `email_template` DML model (id, name, category, event_key, subject, `design` Unlayer JSON, `html`, `placeholders`, status, tags), MedusaService CRUD, migration `Migration20260817EmailTemplate.ts`, admin CRUD API (`/admin/email-templates`, `[id]`, `seed`), 13 seeded templates. **Done, live** — the document store generalizes/extends this.
+  - **Placeholder machinery**: `backend/src/lib/email-templates.ts` — `parsePlaceholders`, `renderEmailString/Html/Subject`, `EVENT_AVAILABLE_KEYS` catalog, `EVENT_LABELS`, `suggestTemplatesForEvent`, `buildSeedDesign`, `seedEmailTemplateRows`. The `{{key:value}}` syntax is the established pattern to generalize for documents.
+  - **Settings**: `backend/src/lib/settings.ts` — `divinekart_settings` blob in store metadata; `invoicing` block (company_name, company_address, gstin, contact_email, footer_note) feeds the existing invoice HTML; `brm_notify` per-event `{whatsapp, email}` config. Admin API `/admin/settings`, storefront `/store/settings`.
+  - **Document renderer today**: `backend/src/lib/invoice.ts` — `renderInvoiceHtml(order, {kind: "invoice"|"waybill"})` print-ready HTML, `buildInvoiceDocument` merges invoicing settings. Served as `text/html` by `/store/orders/[id]/invoice` and `/waybill` routes (browser print-to-PDF is the current "PDF" strategy). No PDF library anywhere in the repo.
+  - **BRM pipeline**: `backend/src/modules/brm/` (7 models) + `backend/src/lib/brm.ts` (`processRenewals` lifecycle, 8 notification events) → `brm-notify.ts` dispatcher (WhatsApp real, email console.log seam). Admin surface `/admin/brm/*` incl. `/notifications` page.
+  - **WhatsApp**: `backend/src/lib/whatsapp.ts` + `whatsapp-session.ts` (`sendImage`/`sendFileFromUrl` seam exists at line ~171 — usable for document files), `whatsapp-broadcast.ts`, module + loaders, webhook route. Subscribers: order-whatsapp (PLACED/FULFILLMENT_CREATED), payment-tracking (captured/refund.created), cart-abandonment.
+  - **Workers**: 30s scheduled jobs `brm-renewal.ts`, `whatsapp-broadcast-dispatch.ts` — the pattern for background document generation. Redis configured (event bus + jobs backed).
+  - **Storefront**: `/orders/[id]` + `/account` pages exist (no download affordances); `storefront/src/lib/api.ts` fetchOrder/fetchMyOrders — no invoice/waybill fetches yet.
+  - **No drag-drop libs installed**; admin UI = `@medusajs/ui` + A2 kit (`backend/src/admin/components/`: SectionCard, Row, PageHeader, AdminModal, StatCard, useConfirm, tokens).
+- Repo AGENTS.md mandates: MCP discovery first (codebase-memory-mcp, gitnexus), impact analysis before editing shared symbols, settings lib blob pattern for config, keep storefront `medusa.ts` mock fallback load-bearing.
+- **Puppeteer-in-Docker note**: the backend container will need Chromium system deps; research ticket R1 pins the exact package + Dockerfile change. Do not ship a breaking Docker change without the harness verifying it (docker-publish CI is green and load-bearing).
+
+## Decision tickets
+
+Blocking wired by name. Each ticket resolves in one 100K-token session. Blocker-first order:
+
+1. **D1 — PDF stack research (Puppeteer in Medusa Docker)** (`research`): Which Puppeteer/Chromium install works in the backend container (Dockerfile additions, system deps, launch flags for root), html→pdf option mapping for A4 invoices (format, printBackground, margins, header/footer templates), memory/runtime in the 30s-job context, and the fallback if Chromium can't run (playwright-core, wkhtmltopdf). → blocks D4. **✅ Resolved** (08/17): `puppeteer@^25.7.0` + Alpine system `chromium`; Dockerfile apk + env; singleton browser; page.pdf optionset; wkhtmltopdf rejected; arm64/QEMU timeout flagged for D4. Resolution: `issues/01-pdf-stack-research.md`.
+2. **D2 — Unified template store: extend email_template to documents** (`task`): Generalize the `email_template` module (or add sibling `document_template` sharing the module pattern) so document templates (doc_kind: invoice, waybill, transit_memo, receipt, e_bill, payment_receipt, custom) live alongside email templates with page geometry (format, orientation, margins) + design JSON + `{{key:value}}` placeholders + status; admin CRUD API for documents; seed endpoint. No regression to E1 gallery. → blocks D3, D4, D7.
+3. **D3 — Document placeholder catalog + renderer lib** (`task`): Generalize `email-templates.ts` into a shared template lib — `{{key:value}}` parse/render for both email and documents, per-event typed key catalogs extended for document kinds (order, customer, line items, totals, payment, subscription/renewal, company/invoicing settings), `suggestTemplatesForEvent` for documents. → blocks D5, D6.
+4. **D4 — Puppeteer PDF generation engine** (`task`): `buildPdfFromHtml` service (launch Chromium once, reuse; render template HTML + `{{key:value}}` substitution → PDF buffer), page geometry from template config, watermark/header/footer options, in-process reuse + graceful shutdown; upgrade the `/store/orders/:id/invoice|waybill` routes to return real PDF (keep HTML fallback param) without breaking existing consumers. → blocks D6, D7, D8.
+5. **D5 — Drag-and-drop document template builder UI** (`task`): Admin page(s) `/documents/templates/[id]/edit` (and list) — custom canvas/grid designer on `@medusajs/ui` + dnd-kit for PDF document templates (drag placeholder blocks, insert `{{key:value}}` chips from the D3 catalog, page geometry controls, live HTML+PDF preview), Unlayer for email templates (absorbs email-builder E2). Save → D2 API. → blocks D6, D7.
+6. **D6 — SMTP email transport with attachments** (`task`): Real nodemailer transport configured in settings (`email` block: host, port, user, pass, from, secure), replace the `brm-notify.ts` console.log email seam with a real sender that renders a bound template and attaches the D4-generated PDF; fall back to log seam when SMTP unset (no regression to A5). → blocks D7.
+7. **D7 — Pipeline event → template binding + dispatcher consumption** (`task`): Extend the admin `/brm/notifications` binding surface (and order/payment event binding) so each pipeline stage binds a document template (and/or email template) with suggestive selection (keys ⊆ event keys); dispatcher generates the PDF (D4) and sends via email (D6) + WhatsApp (sendFileFromUrl seam); falls back to inline body when unbound. Absorbs email-builder E3. → blocks D8.
+8. **D8 — Storefront + admin download surfaces & E2E verification** (`task`): Download Invoice/Waybill/Receipt buttons on `/orders/[id]` + account history; admin preview/download of any generated document; seed the document gallery; end-to-end live harness (BRM renewal → PDF attachment → email+WhatsApp, storefront download) + typecheck/build green + no-regression sweep. (final gate)
+
+## Fog of war (not yet specified)
+
+- How the document builder canvas divides custom @medusajs/ui designer vs Unlayer vs dnd-kit — D5 decides; the canvas may need a small prototype before commit.
+- Whether documents need their own module or extend `email_template` with a `kind` discriminator — D2 decides.
+- Data keys beyond the current catalogs: exact key lists for waybill/transit-memo (carrier, tracking, consignor/consignee), payment receipt (transaction ref, mode, gateway), e-bill — D3 extends; seeds keep them honest.
+- PDF file lifecycle: where generated PDFs are stored (memory-only per request vs disk cache vs S3), retention, and re-download semantics — D8 may surface a storage decision.
+- Unlayer CDN reachability in the deployed admin (carried over from email-builder fog) — D5 decides the fallback.
+- Whether e-bill/transit-memo are GST-compliant (IRN/e-invoice) — out of scope for statutory filing; this effort generates presentable documents, not IRN registration.
+
+## Out of scope
+
+- Statutory GST e-invoice IRN filing / government portal integration — this effort produces visual PDF documents for dispatch, not compliance filing.
+- Rewriting Medusa's stock admin chrome — only custom routes on the A2 kit.
+- Rebuilding the BRM engine, payment router, or subscription runtime (advanced-commerce map).
+- Storefront email rendering — transactional emails/documents are generated server-side.
+- A separate WhatsApp message-template gallery — WhatsApp keeps plain-text message templates; this adds document attachments via the file-send seam.
+
+## Decisions so far
+
+- Destination settled by user grill (2026-08-17): unified template system (absorbs email-builder); Puppeteer server-side HTML→PDF; builder = custom @medusajs/ui document designer + Unlayer for email + dnd-kit where fitting; pipelines = BRM 8 + order + payment events; real SMTP transport built; downloads = storefront order detail + account + backend routes + admin preview. Recorded in Notes above.
+- **D1 — PDF stack research** (closed 2026-08-17): `puppeteer@^25.7.0` + Alpine system `chromium` (musl; glibc Chrome-for-Testing won't run on `node:24-alpine`), apk adds `chromium font-noto-sans font-noto-sans-devanagari`, `PUPPETEER_SKIP_DOWNLOAD=true` + `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser`, launch flags `--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage`, singleton browser + SIGTERM close, `page.pdf({format:"A4", printBackground:true, margin:16/12mm, timeout:30s})`, `Buffer.from(Uint8Array)`, `-webkit-print-color-adjust:exact`. Fallback: playwright-core/Gotenberg; biggest CI risk = QEMU arm64 + 30-min docker-publish timeout. Full detail: `issues/01-pdf-stack-research.md`.
