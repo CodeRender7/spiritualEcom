@@ -5,12 +5,31 @@ FROM openwa/wa-automate:latest
 
 USER root
 
-RUN apt-get update \
+# The base image ships a google-chrome apt repo whose key has expired
+# (NO_PUBKEY FD533C07C264648F), which makes `apt-get update` fail and kill the
+# whole build. Chrome itself is already installed at /opt/google/chrome, so drop
+# the repo (and clean stray lists) before updating.
+RUN rm -f /etc/apt/sources.list.d/google-chrome*.list /etc/apt/trusted.gpg.d/google-chrome*.gpg \
+  && rm -f /etc/apt/sources.list.d/*.save /etc/apt/sources.list.d/*.distUpgrade \
+  && apt-get update \
   && apt-get install -y --no-install-recommends procps curl \
   && rm -rf /var/lib/apt/lists/*
 
 # The base image sets USER owauser; procps binaries remain world-executable.
 USER owauser
+
+# Raise Puppeteer's launch + WA page navigation timeouts. The base open-wa
+# hardcodes 30s defaults (waitForWSEndpoint + page.goto), but a cold Chrome
+# profile on a slow host boots in ~40-120s, so create() times out and the
+# session never mounts. Patch both in the installed dist (openwa-config.json
+# raises the launch timeout; this raises the WA login page navigation timeout).
+RUN sed -i 's|const webRes = yield waPage.goto(puppeteer_config_1.puppeteerConfig.WAUrl);|const webRes = yield waPage.goto(puppeteer_config_1.puppeteerConfig.WAUrl, { timeout: 180000 });|' \
+    /usr/src/app/node_modules/@open-wa/wa-automate/dist/controllers/browser.js
+
+# Multi-session entrypoint (replaces the stock single-session EasyAPI CLI).
+# Runs one client per WA_SESSIONS id and routes /<sessionId>/<method> paths.
+# .cjs required: the base image package.json has "type": "module".
+COPY openwa-multisession.cjs /usr/src/app/openwa-multisession.cjs
 
 # Keep the base image's entrypoint intact.
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "./start.sh"]

@@ -83,11 +83,20 @@ function qrValueOf(w: NormalizedWebhook): string | undefined {
  * has landed. Imported dynamically + guarded so this file keeps booting
  * before that lib exists.
  */
-async function touchBroadcastDeliverability(messageId: string, ack: unknown) {
+async function touchBroadcastDeliverability(
+  container: any,
+  messageId: string,
+  ack: unknown
+) {
   try {
     const mod = await import("../../../lib/whatsapp-broadcast")
     if (typeof mod?.handleBroadcastDeliverability === "function") {
-      await mod.handleBroadcastDeliverability?.({ messageId, status: mapAckToStatus(ack), ack })
+      const status = mapAckToStatus(ack)
+      await mod.handleBroadcastDeliverability?.(container, {
+        waMessageId: messageId,
+        ack: ack as number | string | undefined,
+        ...(status ? { status } : {}),
+      })
     }
   } catch (err) {
     // Phase 5 broadcast lib not present yet — safely ignore during dev.
@@ -103,7 +112,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { event, data, sessionKey } = parsed
 
   try {
-    if (event === "qr") {
+    // OpenWA's QRManager emits under three namespaces: plain "qr" (PNG), "qrData"
+    // (raw QR string) and "qrUrl" (link code URL when ezqr is on). The forwarded
+    // lifecycle payload uses the same namespace verbatim, so accept any qr*.
+    if (event === "qr" || event.startsWith("qr")) {
       const session = resolveSession(sessionKey)
       if (session) {
         await updateSessionRecord(req.scope, session.id, {
@@ -161,7 +173,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         )
       }
       if (waMessageId) {
-        await touchBroadcastDeliverability(waMessageId, data.ack)
+        await touchBroadcastDeliverability(req.scope, waMessageId, data.ack)
       }
       return res.json({ received: true })
     }

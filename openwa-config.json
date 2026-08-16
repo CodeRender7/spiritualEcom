@@ -3,9 +3,11 @@
   "headless": true,
   "useChrome": true,
   "executablePath": "/usr/bin/google-chrome",
+  "customUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
   "host": "0.0.0.0",
   "port": 8002,
   "inDocker": true,
+  "timeout": 180000,
   "qrTimeout": 0,
   "popup": true,
   "debug": true,
@@ -13,17 +15,20 @@
   "disableSpins": true,
   "chromiumArgs": [
     "--no-sandbox",
+    "--no-zygote",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu"
   ],
   "browserArgs": [
     "--no-sandbox",
+    "--no-zygote",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu"
   ],
   "puppeteerConfig": {
-    "dumpio": true
+    "dumpio": true,
+    "timeout": 180000
   }
 }

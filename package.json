@@ -13,7 +13,13 @@
     "typecheck": "turbo run typecheck",
     "seed": "pnpm --filter divinekart-backend run seed",
     "db:migrate": "pnpm --filter divinekart-backend run db:migrate",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "agent:run": "node .agents/autonomous/driver.mjs run",
+    "agent:discover": "node .agents/autonomous/driver.mjs discover",
+    "agent:recover": "node .agents/autonomous/driver.mjs recover",
+    "agent:release": "node .agents/autonomous/driver.mjs release",
+    "agent:next-version": "node scripts/dev/next-version.mjs",
+    "agent:test": "node --test .agents/autonomous/test/"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

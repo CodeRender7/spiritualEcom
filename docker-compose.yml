@@ -231,9 +231,12 @@ services:
       dockerfile: openwa.Dockerfile
     image: divinekart-openwa:patched
     container_name: divinekart-openwa
+    # Optional service: NOT started by plain `docker compose up`. Start it
+    # explicitly with:  docker compose --profile openwa up -d
+    profiles: ["openwa"]
     shm_size: '2gb'
     restart: unless-stopped
-    command: /usr/src/app/node_modules/@open-wa/wa-automate/bin/server.js --use-chrome --in-docker --qr-timeout 0 --popup --debug --force-port --config /config/config.json --no-update
+    command: /usr/src/app/openwa-multisession.cjs --no-update
     environment:
       - WA_WEBHOOK=http://backend:9000/webhooks/whatsapp
       - WA_EV=http://backend:9000/webhooks/whatsapp
@@ -245,13 +248,23 @@ services:
       - DISABLE_SPINS=true
       - LOG_LEVEL=info
       - WA_CLI_CONFIG=/config/config.json
+      # Multi-session: one OpenWA client per account. "session" is the legacy
+      # account and owns unprefixed routes (/method); add more ids to this
+      # comma-separated list to boot additional accounts, each reachable at
+      # /<id>/method (backend session_key = these ids).
+      - WA_SESSIONS=session
       - DBUS_SESSION_BUS_ADDRESS="disabled:"
+      # Docker Desktop on Windows leaks the host's HOME (C:\Users\...) into the
+      # container, mangled to an invalid Linux path (C:Users...). Chrome aborts
+      # instantly without a valid writable home, killing every launch.
+      - HOME=/home/owauser
     volumes:
       - openwa_sessions:/sessions
       - openwa_logs:/logs
       - ./openwa-config.json:/config/config.json:ro
     ports:
-      - "8002:8002"   # QR code web interface + API
+      - "8002:8002"   # EasyAPI (session methods + lifecycle webhooks target)
+      - "7000:7000"   # popup QR scan page (open http://localhost:7000 to pair a phone)
     healthcheck:
       # Probe a real EasyAPI route instead of the popup page. The API only
       # exists while EasyAPI is mounted (browser up). Without procps the
