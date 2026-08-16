@@ -1,0 +1,38 @@
+name: Greetings
+
+on:
+  pull_request:
+    types: [opened]
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  greeting:
+    name: Welcome first contributors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            👋 Thanks for opening your first issue in **DivineKart**!
+
+            To help us triage quickly:
+            - Add a clear, descriptive title.
+            - Fill in the issue template fields (steps to reproduce, expected behavior, screenshots).
+            - Check existing issues to avoid duplicates.
+
+            We'll review it soon. 💚
+          pr-message: |
+            🎉 Thanks for your first pull request in **DivineKart**!
+
+            Before review, please make sure:
+            - The PR title follows the semantic format (feat:, fix:, docs:, ci:, ...) — enforced by our Check PR Title workflow.
+            - `pnpm turbo typecheck` and `pnpm turbo build` pass locally.
+            - Your changes are focused and documented.
+
+            A maintainer will review shortly. 🚀
