@@ -1,11 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
   cancelBroadcast,
   getBroadcast,
   loadsBroadcastSummaries,
   retryFailed,
 } from "../../../../../lib/whatsapp-broadcast"
+import { resolveWhatsappService } from "../../../../../lib/whatsapp-utils"
 
 /**
  * Admin WhatsApp Broadcast Detail API
@@ -64,19 +64,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const { id } = req.params
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
     const broadcast = await getBroadcast(req.scope, id)
     if (!broadcast) {
       return res.status(404).json({ message: "Broadcast not found" })
     }
 
-    await query.graph({
-      entity: "whatsapp_broadcasts",
-      operation: "update",
-      filters: { id },
-      data: { deleted_at: new Date(), updated_at: new Date() },
-    })
+    const svc = resolveWhatsappService(req.scope)
+    await svc.updateWhatsappBroadcasts([
+      { id, deleted_at: new Date(), updated_at: new Date() },
+    ])
     return res.json({ ok: true })
   } catch (err) {
     return res.status(400).json({ message: (err as Error).message })

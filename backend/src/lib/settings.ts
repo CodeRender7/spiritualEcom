@@ -5,12 +5,67 @@ import { Modules } from "@medusajs/framework/utils"
  * `divinekart_settings` key. Read via getStoreSettings / writeSettings.
  */
 
-export type PaymentSettings = {
-  cod_enabled: boolean
-  razorpay_enabled: boolean
-  razorpay_key_id: string
-  razorpay_key_secret: string
-  razorpay_test_mode: boolean
+export type PaymentProviderKey =
+  | "cod"
+  | "razorpay"
+  | "payu"
+  | "stripe"
+  | "easybuzz"
+  | "justpay"
+  | "paypal"
+  | "hyperswitch"
+
+export type PaymentProviderConfig = {
+  enabled: boolean
+  /** Lower = shown earlier at checkout / preferred first in routing (T7). */
+  priority: number
+  key_id: string
+  key_secret: string
+  test_mode: boolean
+}
+
+export type PaymentSettings = Record<PaymentProviderKey, PaymentProviderConfig>
+
+/** All known providers, in display order (priority ascending by default). */
+export const PAYMENT_PROVIDERS: PaymentProviderKey[] = [
+  "cod",
+  "razorpay",
+  "payu",
+  "stripe",
+  "easybuzz",
+  "justpay",
+  "paypal",
+  "hyperswitch",
+]
+
+/** Human labels for the admin UI. */
+export const PAYMENT_PROVIDER_LABELS: Record<PaymentProviderKey, string> = {
+  cod: "Cash on Delivery",
+  razorpay: "Razorpay (UPI / Cards / NetBanking)",
+  payu: "PayU",
+  stripe: "Stripe",
+  easybuzz: "EasyBuzz",
+  justpay: "JustPay",
+  paypal: "PayPal",
+  hyperswitch: "Hyperswitch (self-hosted)",
+}
+
+/** Medusa payment-provider id each key maps to once its module is installed. */
+export const PAYMENT_PROVIDER_MODULE_IDS: Record<PaymentProviderKey, string> = {
+  cod: "pp_cod_cod",
+  razorpay: "pp_razorpay_razorpay",
+  payu: "pp_payu_payu",
+  stripe: "pp_stripe_stripe",
+  easybuzz: "pp_easybuzz_easybuzz",
+  justpay: "pp_justpay_justpay",
+  paypal: "pp_paypal_paypal",
+  hyperswitch: "pp_hyperswitch_hyperswitch",
+}
+
+export function defaultProviderConfig(
+  overrides: Partial<PaymentProviderConfig> = {}
+): PaymentProviderConfig {
+  return { enabled: false, priority: 100, key_id: "", key_secret: "", test_mode: true, ...overrides }
 }
 
 export type ReviewsSettings = {
@@ -45,23 +100,113 @@ export type InvoicingSettings = {
   footer_note: string
 }
 
+/** BRM lifecycle events that can be routed to notification channels (A5). */
+export type BrmNotifyEventKey =
+  | "activated"
+  | "renewal_success"
+  | "renewal_failure"
+  | "grace_start"
+  | "past_due"
+  | "paused"
+  | "cancelled"
+  | "expiry_warning"
+
+/** Per-channel notification config for one BRM event. */
+export type BrmChannelConfig = {
+  whatsapp: {
+    enabled: boolean
+    /** Template with {name}, {subscription}, {offer}, {amount}, {period_end}… placeholders. */
+    template: string
+  }
+  email: {
+    enabled: boolean
+    subject: string
+    body: string
+  }
+}
+
+export type BrmNotifySettings = {
+  /** Master switch for the whole notification flow. */
+  enabled: boolean
+  events: Record<BrmNotifyEventKey, BrmChannelConfig>
+}
+
 export type DivineKartSettings = {
   payments: PaymentSettings
   reviews: ReviewsSettings
   upsell: UpsellSettings
   whatsapp: WhatsappSettings
   invoicing: InvoicingSettings
+  brm_notify: BrmNotifySettings
 }
 
 export const SETTINGS_KEY = "divinekart_settings"
 
+/** All BRM events, in display order for the admin UI (A5). */
+export const BRM_NOTIFY_EVENTS: BrmNotifyEventKey[] = [
+  "activated",
+  "renewal_success",
+  "renewal_failure",
+  "grace_start",
+  "past_due",
+  "paused",
+  "cancelled",
+  "expiry_warning",
+]
+
+/** Human labels for the admin UI. */
+export const BRM_NOTIFY_EVENT_LABELS: Record<BrmNotifyEventKey, string> = {
+  activated: "Subscription activated",
+  renewal_success: "Renewal successful",
+  renewal_failure: "Renewal failed",
+  grace_start: "Grace period started",
+  past_due: "Payment past due",
+  paused: "Subscription paused",
+  cancelled: "Subscription cancelled",
+  expiry_warning: "Expiry warning",
+}
+
+/** Default per-event channel config. Templates use {name} {offer} {subscription} {amount} {period_end} {next_retry} placeholders. */
+export function defaultBrmChannel(overrides: Partial<BrmChannelConfig> = {}): BrmChannelConfig {
+  return {
+    whatsapp: { enabled: false, template: "" },
+    email: { enabled: false, subject: "", body: "" },
+    ...overrides,
+  }
+}
+
+/** Default brm_notify settings: flow off, every event off with empty templates. */
+export function defaultBrmNotifySettings(): BrmNotifySettings {
+  return {
+    enabled: false,
+    events: {
+      activated: defaultBrmChannel(),
+      renewal_success: defaultBrmChannel(),
+      renewal_failure: defaultBrmChannel(),
+      grace_start: defaultBrmChannel(),
+      past_due: defaultBrmChannel(),
+      paused: defaultBrmChannel(),
+      cancelled: defaultBrmChannel(),
+      expiry_warning: defaultBrmChannel(),
+    },
+  }
+}
+
 export const defaultSettings: DivineKartSettings = {
   payments: {
-    cod_enabled: true,
-    razorpay_enabled: true,
-    razorpay_key_id: process.env.RAZORPAY_KEY_ID || "",
-    razorpay_key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-    razorpay_test_mode: true,
+    cod: defaultProviderConfig({ enabled: true, priority: 10 }),
+    razorpay: defaultProviderConfig({
+      enabled: true,
+      priority: 20,
+      key_id: process.env.RAZORPAY_KEY_ID || "",
+      key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+    }),
+    payu: defaultProviderConfig({ priority: 30 }),
+    stripe: defaultProviderConfig({ priority: 40 }),
+    easybuzz: defaultProviderConfig({ priority: 50 }),
+    justpay: defaultProviderConfig({ priority: 60 }),
+    paypal: defaultProviderConfig({ priority: 70 }),
+    hyperswitch: defaultProviderConfig({ priority: 80 }),
   },
   reviews: {
     enabled: true,
@@ -93,6 +238,7 @@ export const defaultSettings: DivineKartSettings = {
     contact_email: "support@divinekart.com",
     footer_note: "Thank you for shopping at DivineKart! 🙏",
   },
+  brm_notify: defaultBrmNotifySettings(),
 }
 
 /** Deep-merge a partial update into the default settings (survives drifts). */
@@ -103,8 +249,30 @@ export function mergeSettings(partial: Partial<DivineKartSettings>): DivineKartS
     upsell: { ...defaultSettings.upsell, ...(partial.upsell ?? {}) },
     whatsapp: { ...defaultSettings.whatsapp, ...(partial.whatsapp ?? {}) },
     invoicing: { ...defaultSettings.invoicing, ...(partial.invoicing ?? {}) },
+    brm_notify: mergeBrmNotify(partial.brm_notify),
   }
   return merged
+}
+
+/** Deep-merge a partial brm_notify patch over a base (defaults or current stored). */
+function mergeBrmNotify(
+  partial?: Partial<BrmNotifySettings>,
+  base?: BrmNotifySettings
+): BrmNotifySettings {
+  const current = base ?? defaultBrmNotifySettings()
+  const events: BrmNotifySettings["events"] = { ...current.events }
+  for (const key of BRM_NOTIFY_EVENTS) {
+    const patch = partial?.events?.[key]
+    if (!patch) continue
+    events[key] = {
+      whatsapp: { ...current.events[key].whatsapp, ...(patch.whatsapp ?? {}) },
+      email: { ...current.events[key].email, ...(patch.email ?? {}) },
+    }
+  }
+  return {
+    enabled: Boolean(partial?.enabled ?? current.enabled),
+    events,
+  }
 }
 
 /** Read persisted settings from the store metadata, falling back to defaults. */
@@ -130,7 +298,14 @@ export async function writeStoreSettings(
   const current = structureSettings(
     mergeSettings((metadata[SETTINGS_KEY] as Partial<DivineKartSettings>) ?? {})
   )
-  const next = mergeSettings({ ...current, ...partial })
+  // brm_notify is deep-merged over the CURRENT stored value (not the shallow
+  // spread below) so a partial patch like { events: { cancelled: {...} } }
+  // preserves the master switch and other events.
+  const next = mergeSettings({
+    ...current,
+    ...partial,
+    brm_notify: mergeBrmNotify(partial.brm_notify, current.brm_notify),
+  })
   const normalized = structureSettings(next)
 
   await storeModule.updateStores(stores[0].id, {
@@ -143,15 +318,72 @@ export async function writeStoreSettings(
  * Ensure only known keys are present. Drops leftover/unexpected fields so the
  * stored blob always matches the typed shape.
  */
+/**
+ * Normalize the payments blob. Accepts BOTH the legacy flat shape
+ * (cod_enabled / razorpay_key_id / …) and the per-provider shape, so a
+ * settings blob persisted before T6 survives the migration intact.
+ */
+function structurePayments(raw?: Partial<PaymentSettings> | LegacyPaymentSettings | null): PaymentSettings {
+  const legacy = raw as LegacyPaymentSettings | undefined
+  const isLegacy = legacy?.cod_enabled !== undefined || legacy?.razorpay_enabled !== undefined
+
+  const pick = (key: PaymentProviderKey): PaymentProviderConfig => {
+    const current = (raw as Partial<PaymentSettings> | undefined)?.[key] ?? ({} as PaymentProviderConfig)
+    if (isLegacy) {
+      // Legacy flat fields → per-provider config (only cod/razorpay existed).
+      if (key === "cod") {
+        return {
+          enabled: Boolean(legacy?.cod_enabled),
+          priority: 10,
+          key_id: "",
+          key_secret: "",
+          test_mode: true,
+        }
+      }
+      if (key === "razorpay") {
+        return {
+          enabled: Boolean(legacy?.razorpay_enabled),
+          priority: 20,
+          key_id: String(legacy?.razorpay_key_id ?? ""),
+          key_secret: String(legacy?.razorpay_key_secret ?? ""),
+          test_mode: Boolean(legacy?.razorpay_test_mode),
+        }
+      }
+    }
+    const d = defaultSettings.payments[key]
+    return {
+      enabled: Boolean(current.enabled ?? d.enabled),
+      priority: Number(current.priority ?? d.priority),
+      key_id: String(current.key_id ?? d.key_id ?? ""),
+      key_secret: String(current.key_secret ?? d.key_secret ?? ""),
+      test_mode: Boolean(current.test_mode ?? d.test_mode),
+    }
+  }
+
+  return {
+    cod: pick("cod"),
+    razorpay: pick("razorpay"),
+    payu: pick("payu"),
+    stripe: pick("stripe"),
+    easybuzz: pick("easybuzz"),
+    justpay: pick("justpay"),
+    paypal: pick("paypal"),
+    hyperswitch: pick("hyperswitch"),
+  }
+}
+
+/** Legacy flat payment settings shape (pre-T6). Kept for migration only. */
+type LegacyPaymentSettings = {
+  cod_enabled?: boolean
+  razorpay_enabled?: boolean
+  razorpay_key_id?: string
+  razorpay_key_secret?: string
+  razorpay_test_mode?: boolean
+}
+
 function structureSettings(s: DivineKartSettings): DivineKartSettings {
   return {
-    payments: {
-      cod_enabled: Boolean(s.payments?.cod_enabled),
-      razorpay_enabled: Boolean(s.payments?.razorpay_enabled),
-      razorpay_key_id: String(s.payments?.razorpay_key_id ?? ""),
-      razorpay_key_secret: String(s.payments?.razorpay_key_secret ?? ""),
-      razorpay_test_mode: Boolean(s.payments?.razorpay_test_mode),
-    },
+    payments: structurePayments(s.payments),
     reviews: {
       enabled: Boolean(s.reviews?.enabled),
       require_moderation: Boolean(s.reviews?.require_moderation),
@@ -182,5 +414,31 @@ function structureSettings(s: DivineKartSettings): DivineKartSettings {
       ),
       order_shipped_template: String(s.whatsapp?.order_shipped_template ?? ""),
     },
+    brm_notify: structureBrmNotify(s.brm_notify),
+  }
+}
+
+/** Normalize the brm_notify blob to the typed shape (drops leftovers). */
+function structureBrmNotify(raw?: Partial<BrmNotifySettings> | null): BrmNotifySettings {
+  const base = defaultBrmNotifySettings()
+  const events: BrmNotifySettings["events"] = { ...base.events }
+  for (const key of BRM_NOTIFY_EVENTS) {
+    const patch = raw?.events?.[key]
+    if (!patch) continue
+    events[key] = {
+      whatsapp: {
+        enabled: Boolean(patch.whatsapp?.enabled ?? base.events[key].whatsapp.enabled),
+        template: String(patch.whatsapp?.template ?? base.events[key].whatsapp.template ?? ""),
+      },
+      email: {
+        enabled: Boolean(patch.email?.enabled ?? base.events[key].email.enabled),
+        subject: String(patch.email?.subject ?? base.events[key].email.subject ?? ""),
+        body: String(patch.email?.body ?? base.events[key].email.body ?? ""),
+      },
+    }
+  }
+  return {
+    enabled: Boolean(raw?.enabled ?? base.enabled),
+    events,
   }
 }

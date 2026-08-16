@@ -14,6 +14,7 @@ export default async function seedData({ container }: ExecArgs) {
   const regionModule = container.resolve(Modules.REGION);
   const salesChannelModule = container.resolve(Modules.SALES_CHANNEL);
   const apiKeyModule = container.resolve(Modules.API_KEY);
+  const promotionModule = container.resolve(Modules.PROMOTION);
 
   // 1. Get or Create default Sales Channel
   console.log("🔹 Configuring Sales Channel...");
@@ -122,6 +123,55 @@ export default async function seedData({ container }: ExecArgs) {
       });
       collectionsMap[cat.handle] = created;
       console.log(`   Collection created: ${cat.title}`);
+    }
+  }
+
+  // 4b. Create 10 Product Categories (native Medusa taxonomy, mirrored from the collections)
+  // so storefront filtering by category_id works via /store/products?category_id[]=...
+  console.log("🔹 Seeding product categories (10 native taxonomy nodes)...");
+  const categoriesMap: Record<string, any> = {};
+  for (const cat of categoriesData) {
+    const existing = await productModule.listProductCategories({ handle: cat.handle });
+    if (existing.length > 0) {
+      categoriesMap[cat.handle] = existing[0];
+      console.log(`   Category existing: ${cat.title}`);
+    } else {
+      const created = await productModule.createProductCategories({
+        name: cat.title,
+        handle: cat.handle,
+        is_active: true,
+        is_internal: false,
+        metadata: { icon: cat.icon },
+      });
+      categoriesMap[cat.handle] = created;
+      console.log(`   Category created: ${cat.title}`);
+    }
+  }
+
+  // 4c. Create Product Types (secondary taxonomy: material/format)
+  console.log("🔹 Seeding product types...");
+  const typesData = [
+    "Print",
+    "Keyring",
+    "Idol",
+    "Sticker",
+    "Banner",
+    "Frame",
+    "Handbill",
+    "Stationery",
+    "Flag",
+    "Clothing",
+  ];
+  const typesMap: Record<string, any> = {};
+  for (const typeName of typesData) {
+    const existing = await productModule.listProductTypes({ value: typeName });
+    if (existing.length > 0) {
+      typesMap[typeName] = existing[0];
+      console.log(`   Type existing: ${typeName}`);
+    } else {
+      const created = await productModule.createProductTypes({ value: typeName });
+      typesMap[typeName] = created;
+      console.log(`   Type created: ${typeName}`);
     }
   }
 
@@ -345,6 +395,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "Premium paper invitation cards for Ganesh Chaturthi puja with decorative borders and text guides.",
       thumbnail: "https://images.unsplash.com/photo-1567591416348-18e3c3b01859?w=600",
       collection_handle: "handbills",
+      sale_type: "both", // recurring puja invites → subscription eligible (T8)
       price: 249,
       mrp: 499,
       rating: 4.7,
@@ -356,6 +407,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "Handy leaflets containing the steps and mantra guides for Lord Satyanarayan Vrat Katha Puja.",
       thumbnail: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
       collection_handle: "handbills",
+      sale_type: "both",
       price: 149,
       mrp: 299,
       rating: 4.8,
@@ -367,6 +419,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "Pamphlets containing step-by-step Lakshmi Puja rituals and mantras to distribute to community members.",
       thumbnail: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
       collection_handle: "handbills",
+      sale_type: "both",
       price: 399,
       mrp: 799,
       rating: 4.6,
@@ -415,6 +468,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "High-grade weather-proof satin triangular saffron flag featuring Lord Hanuman silhouette and slogan. Size: 3x4 ft.",
       thumbnail: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600",
       collection_handle: "spiritual-flags",
+      sale_type: "both", // temple flags need seasonal replacement → subscription eligible (T8)
       price: 249,
       mrp: 499,
       rating: 4.9,
@@ -426,6 +480,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "Auspicious red satin flag featuring Hanuman Gada graphic. Perfect for local temples and household entrance towers.",
       thumbnail: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600",
       collection_handle: "spiritual-flags",
+      sale_type: "both",
       price: 199,
       mrp: 399,
       rating: 4.8,
@@ -437,6 +492,7 @@ export default async function seedData({ container }: ExecArgs) {
       description: "Set of 5 small saffron flags with Om symbol print and plastic sticks for religious rallies and shobha yatras.",
       thumbnail: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600",
       collection_handle: "spiritual-flags",
+      sale_type: "both",
       price: 129,
       mrp: 249,
       rating: 4.7,
@@ -481,12 +537,36 @@ export default async function seedData({ container }: ExecArgs) {
 
   const newProducts: any[] = [];
   const publishIds: string[] = [];
+  const updateExisting: { id: string; categoryIds: string[]; typeId?: string; metadata?: Record<string, any> }[] = [];
   for (const prod of productsData) {
     const existing = await productModule.listProducts({ handle: prod.handle });
     if (existing.length > 0) {
       const existingProduct = existing[0];
       if (existingProduct.status !== "published") {
         publishIds.push(existingProduct.id);
+      }
+      // Ensure existing products also carry their taxonomy links (categories/types
+      // created above may not have existed when the product was first seeded).
+      const collection = collectionsMap[prod.collection_handle];
+      const category = categoriesMap[prod.collection_handle];
+      const typeName =
+        typesData.find((t) => collection?.title?.toLowerCase().includes(t.toLowerCase())) || typesData[0];
+      // Backfill sale_type metadata so re-seeding upgrades previously-seeded products (T8).
+      const existingMetadata = (existingProduct.metadata ?? {}) as Record<string, any>;
+      const desiredSaleType = prod.sale_type ?? "one_time";
+      if (existingMetadata.sale_type !== desiredSaleType) {
+        updateExisting.push({
+          id: existingProduct.id,
+          categoryIds: category ? [category.id] : [],
+          typeId: typesMap[typeName]?.id,
+          metadata: { ...existingMetadata, sale_type: desiredSaleType },
+        });
+      } else {
+        updateExisting.push({
+          id: existingProduct.id,
+          categoryIds: category ? [category.id] : [],
+          typeId: typesMap[typeName]?.id,
+        });
       }
       console.log(`   Product existing: ${prod.title}`);
       continue;
@@ -498,6 +578,16 @@ export default async function seedData({ container }: ExecArgs) {
       continue;
     }
 
+    const category = categoriesMap[prod.collection_handle];
+    if (!category) {
+      console.log(`⚠️  Warning: Category not found for handle: ${prod.collection_handle}`);
+      continue;
+    }
+
+    // Map each collection → its primary product type (collection name doubles as the type value)
+    const typeName = typesData.find((t) => collection.title.toLowerCase().includes(t.toLowerCase())) || typesData[0];
+    const type = typesMap[typeName];
+
     newProducts.push({
       title: prod.title,
       handle: prod.handle,
@@ -505,6 +595,8 @@ export default async function seedData({ container }: ExecArgs) {
       thumbnail: prod.thumbnail,
       status: "published",
       collection_id: collection.id,
+      category_ids: [category.id],
+      type_id: type?.id,
       sales_channels: [{ id: salesChannel.id }],
       options: [{ title: "StandardOption", values: ["StandardValue"] }],
       variants: [
@@ -520,12 +612,13 @@ export default async function seedData({ container }: ExecArgs) {
         },
       ],
       metadata: {
-        mrp: prod.mrp,
+        mrp: prod.mrp * 100, // minor units (paise), consistent with variant prices
         discount_pct: Math.round(((prod.mrp - prod.price) / prod.mrp) * 100),
         rating: prod.rating,
         rating_count: prod.rating_count,
         is_deal: prod.price < 500, // automatic flag
         is_trending: prod.rating_count > 100,
+        sale_type: prod.sale_type ?? "one_time", // one_time | both (T8 sale-type model)
       },
     });
   }
@@ -540,9 +633,45 @@ export default async function seedData({ container }: ExecArgs) {
     console.log("   No new products to create.");
   }
 
+  if (updateExisting.length > 0) {
+    console.log(`🔹 Linking taxonomy to ${updateExisting.length} existing products...`);
+    for (const p of updateExisting) {
+      await productModule.updateProducts(
+        { id: p.id },
+        {
+          category_ids: p.categoryIds,
+          type_id: p.typeId,
+          ...(p.metadata ? { metadata: p.metadata } : {}),
+        }
+      );
+    }
+    console.log("   Taxonomy links applied.");
+  }
+
   if (publishIds.length > 0) {
     console.log(`🔹 Publishing ${publishIds.length} existing draft products...`);
     await productModule.updateProducts({ id: publishIds }, { status: "published" });
+  }
+
+  // 7. Real promotions — DIVINE10 (10% off, code applied at checkout)
+  console.log("🔹 Seeding real promotions (DIVINE10)...");
+  const existingPromos = await promotionModule.listPromotions({ code: "DIVINE10" });
+  if (existingPromos.length > 0) {
+    console.log("   Promotion DIVINE10 existing — skipping.");
+  } else {
+    await promotionModule.createPromotions({
+      code: "DIVINE10",
+      type: "standard",
+      is_automatic: false,
+      status: "active",
+      application_method: {
+        type: "percentage",
+        target_type: "order",
+        allocation: "across",
+        value: 10,
+      },
+    });
+    console.log("   Promotion DIVINE10 created (10% off, code required).");
   }
 
   console.log("✅ Seed completed successfully!");

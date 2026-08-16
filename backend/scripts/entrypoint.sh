@@ -36,6 +36,14 @@ if [ "$CREATE_ADMIN" = "true" ]; then
   npx medusa user -e "${MEDUSA_ADMIN_EMAIL:-admin@divinekart.com}" -p "${MEDUSA_ADMIN_PASSWORD:-supersecret}" 2>/dev/null || echo "ℹ️  Admin user may already exist"
 fi
 
+# IMPORTANT: Do NOT clear /app/node_modules/.vite here. Vite's optimized-deps
+# cache is content-addressed by the dependency versions in node_modules, which
+# never change in this container (we only docker cp source + compiled output).
+# Wiping it on every boot re-optimizes deps with NEW hashed filenames, so any
+# admin browser tab that was open across the restart requests the OLD chunk
+# URLs and 404s with "Failed to fetch dynamically imported module".
+# Vite invalidates the cache itself when dependencies actually change.
+
 # Start Medusa
 echo ""
 echo "🚀 Starting Medusa server on port 9000..."

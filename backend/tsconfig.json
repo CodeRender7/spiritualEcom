@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "lib": ["es2021"],
+    "lib": ["es2021", "DOM"],
     "target": "es2021",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "declaration": true,
     "declarationMap": true,

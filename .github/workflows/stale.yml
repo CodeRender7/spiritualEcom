@@ -1,0 +1,35 @@
+name: Close Stale Issues & PRs
+
+on:
+  schedule:
+    - cron: "44 9 * * *"
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark and close stale items
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: 60
+          days-before-close: 7
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: help wanted,good first issue
+          exempt-pr-labels: wip,dependencies
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has had no activity for 60 days.
+
+            If it is still relevant, please leave a comment to keep it open. It will be closed in 7 days if no further activity occurs.
+          stale-pr-message: |
+            This pull request has been automatically marked as stale because it has had no activity for 60 days.
+
+            If it is still in progress, please update it or leave a comment. It will be closed in 7 days if no further activity occurs.
+          close-issue-message: "Closing this issue due to inactivity. Feel free to reopen if it is still relevant."
+          close-pr-message: "Closing this pull request due to inactivity. Feel free to reopen when you are ready to continue."
+          operations-per-run: 200

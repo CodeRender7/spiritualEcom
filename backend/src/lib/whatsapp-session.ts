@@ -1,4 +1,5 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { resolveWhatsappService } from "./whatsapp-utils"
 
 export type SessionStatus = "disconnected" | "qr_ready" | "connecting" | "connected" | "error"
 
@@ -183,7 +184,9 @@ export async function sendImage(
 }
 
 /**
- * Load persisted sessions from DB into memory on startup.
+ * Load persisted sessions from DB into memory. Reconciles the registry with
+ * the DB: soft-deleted rows are dropped from memory and any DB rows missing
+ * from the registry are added. Safe to call repeatedly (idempotent).
  */
 export async function loadSessionsFromDB(container: any): Promise<void> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -192,8 +195,17 @@ export async function loadSessionsFromDB(container: any): Promise<void> {
     fields: ["id", "name", "phone_number", "session_key", "status", "qr_code", "created_at", "updated_at"],
     filters: { deleted_at: null },
   })
-  for (const row of result.data || []) {
-    sessionRegistry.set(row as WhatsAppSession)
+  const rows = (result.data || []) as WhatsAppSession[]
+  const liveIds = new Set(rows.map((r) => r.id))
+  // Drop registry entries that are no longer present (soft-deleted in DB).
+  for (const s of sessionRegistry.all()) {
+    if (!liveIds.has(s.id)) {
+      sessionRegistry.delete(s.id)
+    }
+  }
+  // Add/refresh DB rows in memory.
+  for (const row of rows) {
+    sessionRegistry.set(row)
   }
 }
 
@@ -216,12 +228,8 @@ export async function createSessionRecord(
     updated_at: now,
   }
 
-  const db = container.resolve(ContainerRegistrationKeys.QUERY)
-  await db.graph({
-    entity: "whatsapp_sessions",
-    operation: "create",
-    data: [session],
-  })
+  const db = resolveWhatsappService(container)
+  await db.createWhatsappSessions([session])
 
   sessionRegistry.set(session)
   return session
@@ -235,13 +243,14 @@ export async function updateSessionRecord(
   id: string,
   updates: Partial<WhatsAppSession>
 ): Promise<void> {
-  const db = container.resolve(ContainerRegistrationKeys.QUERY)
-  await db.graph({
-    entity: "whatsapp_sessions",
-    operation: "update",
-    filters: { id },
-    data: { ...updates, updated_at: new Date() },
-  })
+  const svc = resolveWhatsappService(container)
+  // Update by primary key; the generated service method throws NOT_FOUND when
+  // the row is missing, so guard defensively for memory-only sessions.
+  try {
+    await svc.updateWhatsappSessions([{ id, ...updates, updated_at: new Date() }])
+  } catch (err) {
+    console.error(`DivineKart WhatsApp update session record failed for ${id}:`, err)
+  }
   const existing = sessionRegistry.get(id)
   if (existing) {
     sessionRegistry.set({ ...existing, ...updates, updated_at: new Date() })

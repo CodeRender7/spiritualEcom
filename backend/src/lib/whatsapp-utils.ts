@@ -78,3 +78,16 @@ export function buildDisplayName(input: {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+/**
+ * Resolve the WhatsApp module service from any Medusa container (route scope,
+ * job container, subscriber container, ...).
+ *
+ * Writes MUST go through the module service's generated methods (e.g.
+ * `createWhatsappChatMessages`, `updateWhatsappSessions`) — the remote-query
+ * `query.graph()` path is read-only in the installed Medusa version and
+ * silently ignores `operation`.
+ */
+export function resolveWhatsappService(container: any): any {
+  return container.resolve("whatsapp")
+}
