@@ -1,11 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import {
   sessionRegistry,
-  startSession,
-  stopSession,
-  getSessionStatus,
   createSessionRecord,
-  updateSessionRecord,
+  loadSessionsFromDB,
 } from "../../../../lib/whatsapp-session"
 
 /**
@@ -19,6 +16,9 @@ import {
  */
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  // Merge persisted rows (soft-delete filtered) into the in-memory registry so
+  // the list is correct even if the boot loader did not run (e.g. worker mode).
+  await loadSessionsFromDB(req.scope)
   const sessions = sessionRegistry.all()
   return res.json({ sessions })
 }
@@ -41,10 +41,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!sessionKey) {
     return res.status(400).json({ message: "Could not derive a session id from name" })
   }
-  if (sessionRegistry.all().some((s) => s.session_key === sessionKey)) {
-    return res.status(409).json({ message: `Session "${sessionKey}" already exists` })
+
+  // Conflict check must be DB-backed (not just the in-memory registry): after a
+  // backend restart the registry starts empty while the DB still holds rows,
+  // so a duplicate name would previously slip through and hit the unique
+  // constraint at insert time → generic 500. Check both the unique `name`
+  // constraint and the derived session_key, and return a real 409.
+  const duplicate = await findDuplicateSession(req.scope, { name: name.trim(), sessionKey })
+  if (duplicate) {
+    return res.status(409).json({
+      message: `Session "${duplicate.name}" already exists (session_key: ${duplicate.session_key})`,
+      session_key: duplicate.session_key,
+    })
   }
 
   const session = await createSessionRecord(req.scope, name, sessionKey)
   return res.json({ session })
+}
+
+/**
+ * Look up an existing (non-deleted) session by exact name or session_key using
+ * the whatsapp module service, which applies the soft-delete filter by default.
+ */
+async function findDuplicateSession(
+  container: any,
+  query: { name: string; sessionKey: string }
+): Promise<{ id: string; name: string; session_key: string } | null> {
+  const svc = container.resolve("whatsapp")
+  const candidates = await svc.listWhatsappSessions({
+    $or: [{ name: query.name }, { session_key: query.sessionKey }],
+  })
+  if (!candidates?.length) return null
+  const hit = candidates[0]
+  return { id: hit.id, name: hit.name, session_key: hit.session_key }
 }

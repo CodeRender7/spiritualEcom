@@ -58,7 +58,12 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   await stopSession(session.session_key)
-  await updateSessionRecord(req.scope, id, { deleted_at: new Date() } as any)
+  // Proper soft-delete through the module service (sets deleted_at). The raw
+  // `updateWhatsappSessions` path is not allowed to mutate managed soft-delete
+  // columns, and the soft-delete filter in list/query.graph excludes the row
+  // afterwards — so it disappears from the dashboard without losing history.
+  const svc: any = req.scope.resolve("whatsapp")
+  await svc.softDeleteWhatsappSessions([id])
   sessionRegistry.delete(id)
   return res.json({ success: true })
 }

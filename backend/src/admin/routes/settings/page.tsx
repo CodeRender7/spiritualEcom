@@ -1,13 +1,48 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Badge, Button, Container, Heading, Input, Label, Select, Switch, Text, Textarea, toast } from "@medusajs/ui"
+import { Input, Select, Switch, Text, Textarea, toast } from "@medusajs/ui"
 import { useEffect, useState } from "react"
+import { PageHeader, Row, SectionCard, saffron } from "../../components"
 
-type PaymentsSettings = {
-  cod_enabled: boolean
-  razorpay_enabled: boolean
-  razorpay_key_id: string
-  razorpay_key_secret: string
-  razorpay_test_mode: boolean
+type PaymentProviderKey =
+  | "cod"
+  | "razorpay"
+  | "payu"
+  | "stripe"
+  | "easybuzz"
+  | "justpay"
+  | "paypal"
+  | "hyperswitch"
+
+type PaymentProviderConfig = {
+  enabled: boolean
+  priority: number
+  key_id: string
+  key_secret: string
+  test_mode: boolean
+}
+
+type PaymentsSettings = Record<PaymentProviderKey, PaymentProviderConfig>
+
+const PAYMENT_PROVIDERS: PaymentProviderKey[] = [
+  "cod",
+  "razorpay",
+  "payu",
+  "stripe",
+  "easybuzz",
+  "justpay",
+  "paypal",
+  "hyperswitch",
+]
+
+const PAYMENT_PROVIDER_LABELS: Record<PaymentProviderKey, string> = {
+  cod: "Cash on Delivery",
+  razorpay: "Razorpay (UPI / Cards / NetBanking)",
+  payu: "PayU",
+  stripe: "Stripe",
+  easybuzz: "EasyBuzz",
+  justpay: "JustPay",
+  paypal: "PayPal",
+  hyperswitch: "Hyperswitch (self-hosted)",
 }
 
 type ReviewsSettings = {
@@ -50,11 +85,6 @@ type Settings = {
   invoicing: InvoicingSettings
 }
 
-const SAFRON = {
-  badgeActive: { backgroundColor: "#F97316", color: "#fff" },
-  save: { backgroundColor: "#F97316", color: "#fff", border: "1px solid #F97316" },
-}
-
 async function apiGet(): Promise<Settings | null> {
   try {
     const res = await fetch("/admin/settings", { credentials: "same-origin" })
@@ -82,54 +112,6 @@ async function apiPost(patch: Partial<Settings>): Promise<boolean> {
   }
 }
 
-function SectionCard({
-  title,
-  description,
-  children,
-  onSave,
-  saving,
-}: {
-  title: string
-  description: string
-  children: React.ReactNode
-  onSave: () => Promise<void>
-  saving: boolean
-}) {
-  return (
-    <Container className="border-ui-border-base mb-6">
-      <div className="mb-6">
-        <Heading level="h1" className="text-xl">
-          {title}
-        </Heading>
-        <Text className="text-sm">{description}</Text>
-      </div>
-      <div className="space-y-4">{children}</div>
-      <div className="mt-6 flex justify-end">
-        <Button style={SAFRON.save} disabled={saving} onClick={onSave}>
-          {saving ? "Saving…" : "Save changes"}
-        </Button>
-      </div>
-    </Container>
-  )
-}
-
-function Row({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-center justify-between gap-6 py-2">
-      <div className="flex-1">
-        <Label className="font-medium">{label}</Label>
-      </div>
-      <div className="flex w-1/2 flex-col gap-1">{children}</div>
-    </div>
-  )
-}
-
 function PaymentsTab() {
   const [p, setP] = useState<PaymentsSettings | null>(null)
   const [saving, setSaving] = useState(false)
@@ -147,30 +129,58 @@ function PaymentsTab() {
     else toast.error("Failed to save payment settings")
   }
 
+  const update = (key: PaymentProviderKey, patch: Partial<PaymentProviderConfig>) =>
+    setP((prev) => (prev ? { ...prev, [key]: { ...prev[key], ...patch } } : prev))
+
   if (!p) return <Text className="text-sm">Loading payment settings…</Text>
 
   return (
     <SectionCard
       title="Payment providers"
-      description="Enable or disable payment options shown at checkout. Keys are stored locally on your Medusa backend."
+      description="Enable or disable payment options shown at checkout, set their display priority (lower = first), and store per-provider credentials. Only providers with an installed module appear at checkout until T7 wires the rest."
       onSave={save}
       saving={saving}
     >
-      <Row label="Cash on Delivery (COD)">
-        <Switch checked={p.cod_enabled} onCheckedChange={(v) => setP({ ...p, cod_enabled: v })} />
-      </Row>
-      <Row label="Razorpay (UPI / Cards / NetBanking)">
-        <Switch checked={p.razorpay_enabled} onCheckedChange={(v) => setP({ ...p, razorpay_enabled: v })} />
-      </Row>
-      <Row label="Razorpay test mode">
-        <Switch checked={p.razorpay_test_mode} onCheckedChange={(v) => setP({ ...p, razorpay_test_mode: v })} />
-      </Row>
-      <Row label="Razorpay Key ID">
-        <Input value={p.razorpay_key_id} onChange={(e) => setP({ ...p, razorpay_key_id: e.target.value })} placeholder="rzp_test_…" />
-      </Row>
-      <Row label="Razorpay Key Secret">
-        <Input type="password" value={p.razorpay_key_secret} onChange={(e) => setP({ ...p, razorpay_key_secret: e.target.value })} placeholder="••••••••" />
-      </Row>
+      {PAYMENT_PROVIDERS.map((key) => {
+        const cfg = p[key]
+        return (
+          <div key={key} style={{ borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
+            <Row label={`${PAYMENT_PROVIDER_LABELS[key]} (${key})`}>
+              <Switch checked={cfg.enabled} onCheckedChange={(v) => update(key, { enabled: v })} />
+            </Row>
+            <Row label="Priority (lower = first)">
+              <Input
+                type="number"
+                value={cfg.priority}
+                onChange={(e) => update(key, { priority: Number(e.target.value) || 0 })}
+                min={0}
+              />
+            </Row>
+            {key === "cod" ? null : (
+              <>
+                <Row label="Test mode">
+                  <Switch checked={cfg.test_mode} onCheckedChange={(v) => update(key, { test_mode: v })} />
+                </Row>
+                <Row label="Key ID">
+                  <Input
+                    value={cfg.key_id}
+                    onChange={(e) => update(key, { key_id: e.target.value })}
+                    placeholder={key === "razorpay" ? "rzp_test_…" : "…"}
+                  />
+                </Row>
+                <Row label="Key Secret">
+                  <Input
+                    type="password"
+                    value={cfg.key_secret}
+                    onChange={(e) => update(key, { key_secret: e.target.value })}
+                    placeholder="••••••••"
+                  />
+                </Row>
+              </>
+            )}
+          </div>
+        )
+      })}
     </SectionCard>
   )
 }
@@ -388,15 +398,7 @@ function SettingsPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <Heading level="h1" className="text-2xl">
-            🕉️ Settings
-          </Heading>
-          <Text className="text-sm">Configure DivineKart store features</Text>
-        </div>
-        <Badge style={SAFRON.badgeActive}>Admin</Badge>
-      </div>
+      <PageHeader title="🕉️ Settings" description="Configure DivineKart store features" badge="Admin" />
 
       <div className="mb-6 flex flex-wrap gap-2">
         {tabs.map((t) => (
@@ -406,10 +408,10 @@ function SettingsPage() {
             style={{
               padding: "8px 14px",
               borderRadius: 8,
-              background: tab === t.key ? SAFRON.badgeActive.backgroundColor : "transparent",
-              color: tab === t.key ? "#fff" : "inherit",
+              background: tab === t.key ? saffron.DEFAULT : "transparent",
+              color: tab === t.key ? saffron.ON : "inherit",
               border: "1px solid",
-              borderColor: tab === t.key ? "#F97316" : "rgba(255,255,255,0.15)",
+              borderColor: tab === t.key ? saffron.DEFAULT : "rgba(255,255,255,0.15)",
               fontWeight: 600,
               cursor: "pointer",
             }}
