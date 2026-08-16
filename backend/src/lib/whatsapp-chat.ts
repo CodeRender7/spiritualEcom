@@ -1,6 +1,6 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { sendMessage } from "./whatsapp-session"
-import { genId, normalizePhone, pickConnectedSession, toWaId } from "./whatsapp-utils"
+import { genId, normalizePhone, pickConnectedSession, resolveWhatsappService, toWaId } from "./whatsapp-utils"
 
 /**
  * WhatsApp Chat Support Inbox (Phase 6)
@@ -9,8 +9,11 @@ import { genId, normalizePhone, pickConnectedSession, toWaId } from "./whatsapp-
  * keyed by (session_id, phone). Lifted out of route handlers so the webhook,
  * admin API and (future) tests share one implementation.
  *
- * All table access goes through `container.resolve(QUERY).graph(...)` on the
- * migration-provided tables, mirroring whatsapp-session.ts.
+ * All table access goes through `container.resolve(QUERY).graph(...)` for
+ * READS only. WRITES go through the whatsapp module service's generated
+ * methods (e.g. `createWhatsappChatMessages`, `updateWhatsappConversations`)
+ * — `query.graph()` is read-only in the installed Medusa version and silently
+ * ignores `operation`.
  */
 
 export type ChatDirection = "inbound" | "outbound"
@@ -77,8 +80,6 @@ export async function recordMessage(
 ): Promise<{ message: ChatMessageRow | null }> {
   if (!input.sessionKey) return { message: null }
 
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-
   const rawPhone = input.contactPhone ?? (input.direction === "inbound" ? input.from : input.to) ?? ""
   const phone = normalizePhone(rawPhone)
   if (!phone) return { message: null }
@@ -104,18 +105,15 @@ export async function recordMessage(
   }
 
   try {
-    await query.graph({
-      entity: "whatsapp_chat_messages",
-      operation: "create",
-      data: [message],
-    })
+    const svc = resolveWhatsappService(container)
+    await svc.createWhatsappChatMessages([message])
   } catch (err) {
     console.error("DivineKart WhatsApp insert message failed:", err)
     return { message: null }
   }
 
-  await upsertConversation(query, {
-    session_id: input.sessionKey,
+  await upsertConversation(container, {
+    sessionId: input.sessionKey,
     phone,
     direction: input.direction,
     body: message.body,
@@ -151,7 +149,7 @@ async function lookupCustomer(
 }
 
 async function upsertConversation(
-  query: any,
+  container: any,
   opts: {
     sessionId: string
     phone: string
@@ -165,6 +163,7 @@ async function upsertConversation(
 ): Promise<void> {
   const preview = opts.body || (opts.mediaType ? `[${opts.mediaType}]` : null)
 
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const existingRes = await query.graph({
     entity: "whatsapp_conversations",
     fields: ["*"],
@@ -173,12 +172,12 @@ async function upsertConversation(
   })
   const existing = existingRes?.data?.[0] as Partial<ConversationRow> | undefined
 
+  const svc = resolveWhatsappService(container)
   if (existing) {
-    await query.graph({
-      entity: "whatsapp_conversations",
-      operation: "update",
-      filters: { session_id: opts.sessionId, phone: opts.phone },
-      data: {
+    await svc.updateWhatsappConversations([
+      {
+        session_id: opts.sessionId,
+        phone: opts.phone,
         customer_id: opts.customer_id ?? existing.customer_id ?? null,
         contact_name: opts.contactName ?? existing.contact_name ?? null,
         last_message: preview,
@@ -188,30 +187,26 @@ async function upsertConversation(
           opts.direction === "inbound" ? (existing.unread_count ?? 0) + 1 : 0,
         updated_at: new Date(),
       },
-    })
+    ])
     return
   }
 
-  await query.graph({
-    entity: "whatsapp_conversations",
-    operation: "create",
-    data: [
-      {
-        session_id: opts.sessionId,
-        phone: opts.phone,
-        customer_id: opts.customer_id,
-        contact_name: opts.contactName,
-        last_message: preview,
-        last_direction: opts.direction,
-        last_message_at: opts.timestamp,
-        unread_count: opts.direction === "inbound" ? 1 : 0,
-        status: "open",
-        assigned_to: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    ],
-  })
+  await svc.createWhatsappConversations([
+    {
+      session_id: opts.sessionId,
+      phone: opts.phone,
+      customer_id: opts.customer_id,
+      contact_name: opts.contactName,
+      last_message: preview,
+      last_direction: opts.direction,
+      last_message_at: opts.timestamp,
+      unread_count: opts.direction === "inbound" ? 1 : 0,
+      status: "open",
+      assigned_to: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+  ])
 }
 
 /**
@@ -304,13 +299,15 @@ export async function markConversationRead(
   sessionId: string,
   phone: string
 ): Promise<void> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  await query.graph({
-    entity: "whatsapp_conversations",
-    operation: "update",
-    filters: { session_id: sessionId, phone: normalizePhone(phone) },
-    data: { unread_count: 0, updated_at: new Date() },
-  })
+  const svc = resolveWhatsappService(container)
+  await svc.updateWhatsappConversations([
+    {
+      session_id: sessionId,
+      phone: normalizePhone(phone),
+      unread_count: 0,
+      updated_at: new Date(),
+    },
+  ])
 }
 
 /** Open/resolve a conversation. */
@@ -320,13 +317,15 @@ export async function resolveConversation(
   phone: string,
   resolved: boolean
 ): Promise<void> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  await query.graph({
-    entity: "whatsapp_conversations",
-    operation: "update",
-    filters: { session_id: sessionId, phone: normalizePhone(phone) },
-    data: { status: resolved ? "resolved" : "open", updated_at: new Date() },
-  })
+  const svc = resolveWhatsappService(container)
+  await svc.updateWhatsappConversations([
+    {
+      session_id: sessionId,
+      phone: normalizePhone(phone),
+      status: resolved ? "resolved" : "open",
+      updated_at: new Date(),
+    },
+  ])
 }
 
 /** Update delivery status for a tracked outbound message (by WA message id). */
@@ -336,13 +335,14 @@ export async function updateMessageAck(
   status: ChatStatus
 ): Promise<void> {
   if (!waMessageId) return
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  await query.graph({
-    entity: "whatsapp_chat_messages",
-    operation: "update",
-    filters: { wa_message_id: waMessageId },
-    data: { status, updated_at: new Date() },
-  })
+  const svc = resolveWhatsappService(container)
+  // wa_message_id is not the primary key — use the selector form.
+  await svc.updateWhatsappChatMessages([
+    {
+      selector: { wa_message_id: waMessageId },
+      data: { status, updated_at: new Date() },
+    },
+  ])
 }
 
 /**

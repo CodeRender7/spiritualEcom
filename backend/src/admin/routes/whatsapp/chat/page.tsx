@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Badge, Button, Container, Heading, Input, Text, Textarea, toast } from "@medusajs/ui"
+import { Badge, Button, Container, Input, Text, Textarea, toast } from "@medusajs/ui"
+import { PageHeader, saffron } from "../../../components"
 
 interface Conversation {
   session_id: string
@@ -50,7 +51,7 @@ export default function WhatsAppChatPage() {
         `/admin/whatsapp/chat/conversations?take=100${q ? `&search=${encodeURIComponent(q)}` : ""}`,
         { credentials: "same-origin" }
       )
-      const data = await res.json()
+      const data = (await res.json()) as { conversations?: Conversation[] }
       const list = data.conversations || []
       setConversations(list)
       // Keep the selected row pointing at the freshest copy so the thread
@@ -58,7 +59,7 @@ export default function WhatsAppChatPage() {
       setSelected((prev) => {
         if (!prev) return prev
         return (
-          list.find((c: Conversation) => c.session_id === prev.session_id && c.phone === prev.phone) ||
+          list.find((c) => c.session_id === prev.session_id && c.phone === prev.phone) ||
           prev
         )
       })
@@ -90,7 +91,7 @@ export default function WhatsAppChatPage() {
         )}`,
         { credentials: "same-origin" }
       )
-      const data = await res.json()
+      const data = (await res.json()) as { messages?: ChatMessage[] }
       setThread(data.messages || [])
     } catch (err) {
       console.error("Failed to fetch thread:", err)
@@ -114,7 +115,7 @@ export default function WhatsAppChatPage() {
           body: JSON.stringify({ text: draft, sessionId: selected.session_id }),
         }
       )
-      const data = await res.json().catch(() => ({}))
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (res.status === 400 && data.error === "no_connected_session") {
         toast.error("No connected WhatsApp session. Open the Sessions page to connect one.")
         return
@@ -166,16 +167,15 @@ export default function WhatsAppChatPage() {
   }
 
   return (
-    <Container style={{ padding: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px" }}>
-        <Heading level="h1">WhatsApp Chat</Heading>
-        <Badge style={{ backgroundColor: "#F97316", color: "#fff" }}>Inbox</Badge>
+    <Container className="p-0">
+      <div className="px-6 pt-6">
+        <PageHeader title="WhatsApp Chat" description="Customer conversations inbox." badge="Inbox" />
       </div>
 
       <div style={twoPaneStyle}>
         {/* LEFT: conversation list */}
         <div style={listPaneStyle}>
-          <div style={{ padding: "12px" }}>
+          <div className="p-3">
             <Input
               placeholder="Search phone or name…"
               value={search}
@@ -185,8 +185,8 @@ export default function WhatsAppChatPage() {
           </div>
 
           {conversations.length === 0 && (
-            <div style={{ padding: "24px 16px", textAlign: "center" }}>
-              <Text style={{ color: "#6b7280" }}>
+            <div className="p-6 text-center">
+              <Text className="text-ui-fg-subtle">
                 No conversations yet. Incoming WhatsApp messages will appear here.
               </Text>
             </div>
@@ -199,38 +199,27 @@ export default function WhatsAppChatPage() {
               <button
                 key={`${c.session_id}:${c.phone}`}
                 onClick={() => setSelected(c)}
+                className="block w-full border-b border-ui-border-base text-left"
                 style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  border: "none",
-                  borderBottom: "1px solid #e2e8f0",
-                  background: active ? "#fff7ed" : c.unread_count > 0 ? "#fef3c7" : "transparent",
+                  background: active ? saffron.SOFT : c.unread_count > 0 ? "#fef3c7" : "transparent",
                   padding: "12px 16px",
                   cursor: "pointer",
                   fontFamily: "inherit",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="flex items-center justify-between">
                   <span style={{ fontWeight: highlighted ? 600 : 400, fontSize: 14 }}>{displayName(c)}</span>
-                  <span style={{ fontSize: 11, color: "#64748b" }}>{timeAgo(c.last_message_at)}</span>
+                  <span className="text-xs text-ui-fg-muted">{timeAgo(c.last_message_at)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                <div className="mt-1 flex items-center justify-between">
                   <Text
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      flex: 1,
-                      marginRight: 8,
-                    }}
+                    className="flex-1 truncate pr-2 text-xs text-ui-fg-muted"
+                    style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                   >
                     {c.last_message || "—"}
                   </Text>
                   {c.unread_count > 0 && (
-                    <Badge style={{ backgroundColor: "#F97316", color: "#fff", minWidth: 20, textAlign: "center" }}>
+                    <Badge style={{ backgroundColor: saffron.DEFAULT, color: saffron.ON, minWidth: 20, textAlign: "center" }}>
                       {c.unread_count}
                     </Badge>
                   )}
@@ -244,18 +233,10 @@ export default function WhatsAppChatPage() {
         <div style={threadPaneStyle}>
           {selected ? (
             <>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  borderBottom: "1px solid #e2e8f0",
-                }}
-              >
+              <div className="flex items-center justify-between border-b border-ui-border-base px-4 py-3">
                 <div>
                   <Text style={{ fontWeight: 600 }}>{displayName(selected)}</Text>
-                  <Text style={{ fontSize: 12, color: "#64748b" }}>{selected.phone}</Text>
+                  <Text className="text-xs text-ui-fg-muted">{selected.phone}</Text>
                 </div>
                 <Button size="small" variant={selected.status === "resolved" ? "secondary" : "danger"} onClick={toggleResolve}>
                   {selected.status === "resolved" ? "Reopen" : "Resolve"}
@@ -264,24 +245,22 @@ export default function WhatsAppChatPage() {
 
               <div style={messagesStyle}>
                 {thread.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                    <Text style={{ color: "#6b7280" }}>No messages yet in this thread.</Text>
+                  <div className="p-10 text-center">
+                    <Text className="text-ui-fg-subtle">No messages yet in this thread.</Text>
                   </div>
                 )}
                 {thread.map((m) => {
                   const inbound = m.direction === "inbound"
                   return (
-                    <div key={m.id} style={{ display: "flex", justifyContent: inbound ? "flex-start" : "flex-end" }}>
+                    <div key={m.id} className="flex" style={{ justifyContent: inbound ? "flex-start" : "flex-end" }}>
                       <div
+                        className="mb-2 rounded-xl px-3 py-2"
                         style={{
                           maxWidth: "70%",
-                          marginBottom: 8,
-                          padding: "8px 12px",
-                          borderRadius: 12,
-                          backgroundColor: inbound ? "#f1f5f9" : "#dbeafe",
+                          backgroundColor: inbound ? "var(--bg-ui-bg-subtle, #f1f5f9)" : saffron.SOFT,
                         }}
                       >
-                        <Text style={{ fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        <Text className="whitespace-pre-wrap break-words text-[13px]">
                           {m.body || (m.media_type ? `[${m.media_type}]` : "")}
                         </Text>
                         {m.media_url && (
@@ -291,7 +270,7 @@ export default function WhatsAppChatPage() {
                             style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 8 }}
                           />
                         )}
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textAlign: "right" }}>
+                        <div className="mt-1 text-right text-[11px] text-ui-fg-muted">
                           {formatTimestamp(m.timestamp)}
                         </div>
                       </div>
@@ -300,7 +279,7 @@ export default function WhatsAppChatPage() {
                 })}
               </div>
 
-              <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
+              <div className="flex gap-2 border-t border-ui-border-base px-4 py-3">
                 <Textarea
                   rows={2}
                   placeholder="Type a reply… (Enter to send)"
@@ -312,16 +291,16 @@ export default function WhatsAppChatPage() {
                       sendReply()
                     }
                   }}
-                  style={{ flex: 1 }}
+                  className="flex-1"
                 />
-                <Button onClick={sendReply} style={{ backgroundColor: "#F97316", alignSelf: "flex-end" }}>
+                <Button onClick={sendReply} style={{ backgroundColor: saffron.DEFAULT, alignSelf: "flex-end" }}>
                   Send
                 </Button>
               </div>
             </>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              <Text style={{ color: "#6b7280" }}>Select a conversation to view the thread.</Text>
+            <div className="flex h-full items-center justify-center">
+              <Text className="text-ui-fg-subtle">Select a conversation to view the thread.</Text>
             </div>
           )}
         </div>
@@ -354,18 +333,17 @@ function formatTimestamp(ts: string): string {
 
 export const config = defineRouteConfig({
   label: "WhatsApp Chat",
-  icon: "ChatBubbleBottomCenterText",
 })
 
 const twoPaneStyle: React.CSSProperties = {
   display: "flex",
-  height: "calc(100vh - 110px)",
+  height: "calc(100vh - 170px)",
 }
 
 const listPaneStyle: React.CSSProperties = {
   width: 300,
   minWidth: 300,
-  borderRight: "1px solid #e2e8f0",
+  borderRight: "1px solid var(--border-ui-border-base, #e2e8f0)",
   overflowY: "auto",
   background: "#ffffff",
 }
@@ -381,5 +359,5 @@ const messagesStyle: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   padding: "16px",
-  background: "#f8fafc",
+  background: "var(--bg-ui-bg-base-hover, #f8fafc)",
 }

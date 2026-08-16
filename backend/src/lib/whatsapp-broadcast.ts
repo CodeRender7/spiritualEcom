@@ -1,6 +1,6 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { sessionRegistry, sendImage, sendMessage } from "./whatsapp-session"
-import { genId, hasConnectedSession, normalizePhone, pickConnectedSession, sleep, toWaId } from "./whatsapp-utils"
+import { genId, hasConnectedSession, normalizePhone, pickConnectedSession, resolveWhatsappService, sleep, toWaId } from "./whatsapp-utils"
 
 /**
  * WhatsApp Broadcast Campaigns (Phase 5)
@@ -9,9 +9,11 @@ import { genId, hasConnectedSession, normalizePhone, pickConnectedSession, sleep
  * audience (manual numbers, all customers, customers with orders) and tracks
  * per-recipient delivery analytics for the admin dashboard.
  *
- * All table access goes through `container.resolve(QUERY).graph(...)` on the
- * migration-provided tables, mirroring whatsapp-session.ts and
- * whatsapp-chat.ts. Aggregate analytics use the raw `PG_CONNECTION` pool.
+ * All table access goes through `container.resolve(QUERY).graph(...)` for
+ * READS only. WRITES go through the whatsapp module service's generated
+ * methods (e.g. `createWhatsappBroadcasts`, `updateWhatsappBroadcastRecipients`)
+ * — `query.graph()` is read-only in the installed Medusa version and silently
+ * ignores `operation`. Aggregate analytics use the raw `PG_CONNECTION` pool.
  */
 
 export type BroadcastAudienceType = "manual_numbers" | "all_customers" | "customers_with_orders"
@@ -258,22 +260,14 @@ export async function createBroadcast(
     updated_at: now,
   }))
 
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  await query.graph({
-    entity: "whatsapp_broadcasts",
-    operation: "create",
-    data: [header],
-  })
+  const svc = resolveWhatsappService(container)
+  await svc.createWhatsappBroadcasts([header])
 
   // Insert recipients in manageable batches to avoid extremely large single
   // inserts for big audiences.
   const batchSize = 1000
   for (let i = 0; i < recipients.length; i += batchSize) {
-    await query.graph({
-      entity: "whatsapp_broadcast_recipients",
-      operation: "create",
-      data: recipients.slice(i, i + batchSize),
-    })
+    await svc.createWhatsappBroadcastRecipients(recipients.slice(i, i + batchSize))
   }
 
   return header
@@ -340,10 +334,12 @@ export async function loadsBroadcastSummaries(
 
   const pool = container.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   const ids = rows.map((r) => r.id)
-  const { rows: grouped } = await pool.query(
+  // PG_CONNECTION is a knex instance — use `.raw()` with `?` bindings, not
+  // pg-style `.query()`/`$1` (which does not exist on knex).
+  const { rows: grouped } = await pool.raw(
     `SELECT broadcast_id, status, COUNT(*)::int AS count
      FROM whatsapp_broadcast_recipients
-     WHERE broadcast_id = ANY($1)
+     WHERE broadcast_id = ANY(?)
      GROUP BY broadcast_id, status`,
     [ids]
   )
@@ -397,31 +393,26 @@ export async function dispatchDue(container: any, now: Date = new Date()): Promi
 }
 
 async function dispatchOne(container: any, broadcast: BroadcastRow, now: Date): Promise<void> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const svc = resolveWhatsappService(container)
 
   // Safety guard: never dispatch a future-scheduled broadcast early (the
   // dispatchDue filter already excludes these, but the job re-runs often).
   if (broadcast.status === "scheduled" && broadcast.scheduled_at && broadcast.scheduled_at > now) return
 
   // Mark sending before we start touching recipients.
-  await query.graph({
-    entity: "whatsapp_broadcasts",
-    operation: "update",
-    filters: { id: broadcast.id },
-    data: { status: "sending", started_at: now, updated_at: now },
-  })
+  await svc.updateWhatsappBroadcasts([
+    { id: broadcast.id, status: "sending", started_at: now, updated_at: now },
+  ])
 
   const sessionKey = pickConnectedSession(sessionKeyFor(broadcast))
   if (!sessionKey) {
-    await query.graph({
-      entity: "whatsapp_broadcasts",
-      operation: "update",
-      filters: { id: broadcast.id },
-      data: { status: "failed", error: "no connected session", finished_at: now, updated_at: now },
-    })
+    await svc.updateWhatsappBroadcasts([
+      { id: broadcast.id, status: "failed", error: "no connected session", finished_at: now, updated_at: now },
+    ])
     return
   }
 
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const recRes = await query.graph({
     entity: "whatsapp_broadcast_recipients",
     fields: ["*"],
@@ -458,21 +449,13 @@ async function dispatchOne(container: any, broadcast: BroadcastRow, now: Date): 
         attempted_at: now,
         updated_at: now,
       }
-      await query.graph({
-        entity: "whatsapp_broadcast_recipients",
-        operation: "update",
-        filters: { id: r.id },
-        data: update,
-      })
+      await svc.updateWhatsappBroadcastRecipients([{ id: r.id, ...update }])
       sent++
     } else {
       failedCount++
-      await query.graph({
-        entity: "whatsapp_broadcast_recipients",
-        operation: "update",
-        filters: { id: r.id },
-        data: { status: "failed", attempted_at: now, error: "send failed", updated_at: now },
-      })
+      await svc.updateWhatsappBroadcastRecipients([
+        { id: r.id, status: "failed", attempted_at: now, error: "send failed", updated_at: now },
+      ])
     }
   }
 
@@ -486,17 +469,15 @@ async function dispatchOne(container: any, broadcast: BroadcastRow, now: Date): 
   // above stay `queued`.
   const terminal = remaining > 0 ? "queued" : final
 
-  await query.graph({
-    entity: "whatsapp_broadcasts",
-    operation: "update",
-    filters: { id: broadcast.id },
-    data: {
+  await svc.updateWhatsappBroadcasts([
+    {
+      id: broadcast.id,
       status: terminal,
       finished_at: terminal === "queued" ? null : now,
       error: terminal === "failed" || terminal === "partial_failed" ? "one or more recipients failed" : null,
       updated_at: now,
     },
-  })
+  ])
 }
 
 /** Cancel a broadcast. Ignored once sending or already sent. */
@@ -505,13 +486,10 @@ export async function cancelBroadcast(container: any, id: string): Promise<boole
   if (!current) return false
   if (current.status === "sending" || current.status === "sent") return false
 
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  await query.graph({
-    entity: "whatsapp_broadcasts",
-    operation: "update",
-    filters: { id },
-    data: { status: "cancelled", finished_at: new Date(), updated_at: new Date() },
-  })
+  const svc = resolveWhatsappService(container)
+  await svc.updateWhatsappBroadcasts([
+    { id, status: "cancelled", finished_at: new Date(), updated_at: new Date() },
+  ])
   return true
 }
 
@@ -520,20 +498,19 @@ export async function retryFailed(container: any, id: string): Promise<boolean> 
   const current = await getBroadcast(container, id)
   if (!current) return false
 
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const svc = resolveWhatsappService(container)
   const now = new Date()
-  await query.graph({
-    entity: "whatsapp_broadcast_recipients",
-    operation: "update",
-    filters: { broadcast_id: id, status: "failed" },
-    data: { status: "queued", error: null, attempted_at: null, updated_at: now },
-  })
-  await query.graph({
-    entity: "whatsapp_broadcasts",
-    operation: "update",
-    filters: { id },
-    data: { status: "queued", finished_at: null, error: null, updated_at: now },
-  })
+  // broadcast_id is not a primary key — use the selector form to requeue
+  // every failed recipient of this broadcast.
+  await svc.updateWhatsappBroadcastRecipients([
+    {
+      selector: { broadcast_id: id, status: "failed" },
+      data: { status: "queued", error: null, attempted_at: null, updated_at: now },
+    },
+  ])
+  await svc.updateWhatsappBroadcasts([
+    { id, status: "queued", finished_at: null, error: null, updated_at: now },
+  ])
   return true
 }
 
@@ -575,12 +552,8 @@ export async function handleBroadcastDeliverability(
   if (status === "delivered") patch.delivered_at = new Date()
   if (status === "read") patch.read_at = new Date()
 
-  await query.graph({
-    entity: "whatsapp_broadcast_recipients",
-    operation: "update",
-    filters: { id: recipient.id },
-    data: patch,
-  })
+  const svc = resolveWhatsappService(container)
+  await svc.updateWhatsappBroadcastRecipients([{ id: recipient.id, ...patch }])
 
   return { ok: true, matched: true }
 }
