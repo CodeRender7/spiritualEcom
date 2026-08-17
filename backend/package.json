@@ -13,7 +13,7 @@
     "db:generate": "medusa db:generate"
   },
   "dependencies": {
-    "@medusajs/admin-bundler": "^2.18.0",
+    "@medusajs/admin-bundler": "^2.19.0",
     "@medusajs/admin-sdk": "^2.18.0",
     "@medusajs/cli": "^2.18.0",
     "@medusajs/file-s3": "^2.18.0",
