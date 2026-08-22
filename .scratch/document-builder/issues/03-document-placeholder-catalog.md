@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **Resolved**
 - Blocking: D5, D6
 - Blocked by: D2
 
@@ -23,3 +23,6 @@ How does the existing `{{key:value}}` machinery (`backend/src/lib/email-template
 - Typecheck + build green.
 - Unit-level render of a document template with `{{key:value}}` substitution from a real order/subscription.
 - Email renderers + `EVENT_AVAILABLE_KEYS` consumers unchanged (no regression).
+## Resolution
+
+EVENT_DOC_KEYS per event/kind (BRM8+order/payment/docs); subscription+refund catalog groups; suggestDocTemplatesForEvent (specificity-ranked, qrcode-aware); collectOrderVars moved into shared lib + collectSubscriptionVars (mirrors brm buildVars naming) + collectDocumentVars resolver; dynamic metadata merge (built-ins win). generateDocument now supports entityType subscription.

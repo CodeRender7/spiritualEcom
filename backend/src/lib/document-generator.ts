@@ -1,11 +1,12 @@
 import { Modules } from "@medusajs/framework/utils"
-import { getStoreSettings } from "./settings"
 import { renderEmailHtml } from "./email-templates"
 import { renderPdf, injectQrTokens, type PdfGeometry } from "./pdf"
 import {
   recordDocumentIssuance,
   resolveDocumentService,
   resolveDocumentTemplateService,
+  collectOrderVars,
+  collectSubscriptionVars,
   type DocKind,
 } from "./document-templates"
 import { buildInvoiceDocument, fetchOrderForInvoice } from "./invoice"
@@ -34,106 +35,17 @@ import crypto from "crypto"
  */
 
 /* ------------------------------------------------------------------ */
-/* Order → template variables (baseline set; D3 refines the catalog)   */
-/* ------------------------------------------------------------------ */
-
-const esc = (s: any): string =>
-  String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-
-const inr = (n: any): string => `₹${Number(n || 0).toLocaleString("en-IN")}`
-
-export async function collectOrderVars(
-  container: any,
-  order: any
-): Promise<Record<string, string>> {
-  const settings = await getStoreSettings(container)
-  const inv = settings.invoicing ?? {}
-  const addr = order?.shipping_address ?? {}
-  const items = order?.items ?? []
-  const customerName =
-    [addr.first_name, addr.last_name].filter(Boolean).join(" ") || "Customer"
-
-  const displayId = String(order?.display_id ?? order?.id ?? "")
-  const dateStr = order?.created_at
-    ? new Date(order.created_at).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : ""
-
-  const rows = items
-    .map(
-      (it: any, i: number) =>
-        `<tr><td>${i + 1}</td><td>${esc(it.title)}</td><td>${Number(it.quantity ?? 0)}</td>` +
-        `<td class="nums">${inr(it.unit_price)}</td><td class="nums">${inr(it.subtotal)}</td></tr>`
-    )
-    .join("")
-
-  const addressOneLine = [
-    addr.address_1,
-    addr.address_2,
-    addr.city,
-    addr.province,
-    addr.postal_code,
-  ]
-    .filter(Boolean)
-    .join(", ")
-
-  return {
-    // company (invoicing settings)
-    company_name: inv.company_name || "DivineKart",
-    company_address: inv.company_address || "",
-    company_gstin: inv.gstin || "",
-    company_email: inv.contact_email || "",
-
-    // order / customer
-    order_id: displayId,
-    invoice_number: `INV-${displayId}`,
-    receipt_number: `RCPT-${displayId}`,
-    waybill_number: `WB-${displayId}`,
-    quote_no: `QT-${displayId}`,
-    order_date: dateStr,
-    order_status: order?.status ?? "",
-    payment_status: order?.payment_status ?? order?.status ?? "",
-    customer_name: customerName,
-    customer_phone: addr.phone ?? "",
-    customer_email: order?.email ?? addr.email ?? "",
-    billing_address: addressOneLine,
-    shipping_address: addressOneLine,
-
-    // totals
-    subtotal: inr(order?.subtotal),
-    discount: inr(order?.discount_total),
-    tax_amount: inr(order?.tax_total),
-    shipping_cost: inr(order?.shipping_total),
-    grand_total: inr(order?.total),
-    amount: Number(order?.total ?? 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-    }),
-    currency: "INR",
-
-    // line items (HTML rows)
-    line_items: rows,
-    items_html: rows,
-    order_items_count: `${items.length} item${items.length === 1 ? "" : "s"}`,
-  } as Record<string, string>
-}
-
 /* ------------------------------------------------------------------ */
 /* Template path                                                       */
 /* ------------------------------------------------------------------ */
-
 export type GenerateDocumentOptions = {
   kind: DocKind | string
   entityId: string
-  entityType?: string
+  entityType?: "order" | "subscription" | string
   templateId?: string
   generatedBy?: string
+  /** Event-specific vars (amount/attempts/next_retry from BRM renewals, refund ids, …). */
+  extraVars?: Record<string, string | number | null | undefined>
 }
 
 export type GenerateDocumentResult = {
@@ -174,14 +86,33 @@ export async function generateDocument(
     throw new Error(`No active pdf template for doc_kind "${options.kind}"`)
   }
 
-  // Entity fetch: orders today; subscriptions arrive with D7's BRM binding.
-  if (options.entityType !== "order") {
-    throw new Error(`Unsupported entity_type "${options.entityType}" yet (D7 adds subscriptions)`)
+  // Entity fetch + vars (D3 collectors; subscriptions added for BRM events).
+  const entityType = options.entityType ?? "order"
+  let entityVars: Record<string, string>
+  if (entityType === "subscription") {
+    const brm = container.resolve("brm")
+    const subs = await brm.listSubscriptions({ id: options.entityId }, { take: 1 })
+    const sub = subs[0]
+    if (!sub) throw new Error(`Subscription ${options.entityId} not found`)
+    entityVars = await collectSubscriptionVars(container, {
+      subscription: sub,
+      amount: options.extraVars?.amount as any,
+      attempts: options.extraVars?.attempts as any,
+      nextRetry: options.extraVars?.next_retry as any,
+    })
+  } else {
+    const order = await fetchOrderForInvoice(container, options.entityId)
+    if (!order) throw new Error(`Order ${options.entityId} not found`)
+    entityVars = await collectOrderVars(container, order)
   }
-  const order = await fetchOrderForInvoice(container, options.entityId)
-  if (!order) throw new Error(`Order ${options.entityId} not found`)
 
-  const vars = await collectOrderVars(container, order)
+  // Dynamic event vars (refund ids, txn refs, …) — built-ins stay authoritative.
+  const extra = options.extraVars ?? {}
+  for (const [k, v] of Object.entries(extra)) {
+    if (v === undefined || v === null) continue
+    if (!(k in entityVars)) entityVars[k] = String(v)
+  }
+  const vars = entityVars
   let html = await injectQrTokens(template.html ?? "", vars)
   html = renderEmailHtml(html, vars)
 
@@ -211,7 +142,7 @@ export async function generateDocument(
   try {
     const files = container.resolve(Modules.FILE)
     const created = await (files as any).createFiles({
-      filename: `${options.kind}-${String(order.display_id ?? order.id)}-v${version.version_number}.pdf`,
+      filename: `${options.kind}-${String(options.entityId)}-v${version.version_number}.pdf`,
       mimeType: "application/pdf",
       content: buffer,
     })

@@ -65,6 +65,10 @@ Blocking wired by name. Each ticket resolves in one 100K-token session. Blocker-
 - Signed-URL mechanics on Medusa File module assets (presigned S3 vs backend-issued JWT route) — D4/D8 decide.
 - Workflow-step injection surface: which core flows get a synchronous `generateDocumentStep` vs subscriber-only — D7 decides.
 
+
+## Status: ALL TICKETS RESOLVED (2026-08-17)
+
+D3–D8 executed in one extended session after D2. Highlights: shared var collectors + per-event key catalog (D3); SMTP transport with masked write-only password, presets, test-send, and log-seam fallback (D6); BRM document channel + order/payment auto-dispatch subscriber with 3-attempt WhatsApp retry and version-level dispatch audit (D7); admin builder v1 — code-mode document editor with chips/preview, Unlayer email editor with HTML fallback seam, issued-docs browser with share-link minting (D5/D8). Verification: backend tsc clean; medusa build green; storefront production build green; host PDF smoke PASS. Deferred as fog: dnd-kit sectional/absolute canvas modes; container-deployed live E2E harness (needs rebuilt image).
 ## Out of scope
 
 - Statutory GST e-invoice IRN filing / government portal integration — this effort produces visual PDF documents for dispatch, not compliance filing.

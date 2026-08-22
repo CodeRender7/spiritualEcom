@@ -112,6 +112,14 @@ export type BrmNotifyEventKey =
   | "expiry_warning"
 
 /** Per-channel notification config for one BRM event. */
+export type BrmDocumentConfig = {
+  enabled: boolean
+  /** Document kind to generate for this event (invoice, payment_receipt, �). Empty = none. */
+  doc_kind: string
+  /** Optional explicit pdf-template override (falls back to kind default). */
+  template_id?: string | null
+}
+
 export type BrmChannelConfig = {
   whatsapp: {
     enabled: boolean
@@ -122,13 +130,69 @@ export type BrmChannelConfig = {
     enabled: boolean
     subject: string
     body: string
+    /** Gallery template id (email-builder map E3) — when set, the dispatcher
+     *  renders this template (HTML + subject, `{{key:value}}` substitution)
+     *  instead of the inline subject/body. Null/absent = inline fallback. */
+    template_id?: string | null
   }
+  /** Document channel (document-builder D7): generate + attach a pdf for this event. */
+  document?: BrmDocumentConfig
 }
 
 export type BrmNotifySettings = {
   /** Master switch for the whole notification flow. */
   enabled: boolean
   events: Record<BrmNotifyEventKey, BrmChannelConfig>
+}
+
+/** Quantity-tier base charge (T18): highest min_qty ≤ total cart qty wins. */
+export type ShippingTier = {
+  min_qty: number
+  /** Base delivery charge (paise) applied to orders at this tier. */
+  base_charge: number
+}
+
+/**
+ * Per-product shipping override (T18). Kept in the settings blob (not product
+ * metadata) so the admin surface stays single — keyed by product_id.
+ */
+export type ShippingProductOverride = {
+  product_id: string
+  /** Extra charge per unit (paise); null/absent = no per-unit charge. */
+  charge_per_unit?: number | null
+  /** Line ships free regardless of base/tiers. */
+  free_shipping?: boolean
+  /** Parcel vendor label (Delhivery/BlueDart-style); display/routing hint. */
+  parcel_vendor?: string | null
+}
+
+/** DivineKart delivery-charge rules engine (T18) — layered composition:
+ *  base (tier-adjusted) + Σ per-unit overrides; threshold waives BASE only;
+ *  premium members ship free when enabled. */
+export type ShippingSettings = {
+  enabled: boolean
+  /** Global base delivery charge (paise). */
+  base_charge: number
+  /** Order value (paise) at which the BASE charge is waived; null = off. */
+  free_shipping_threshold: number | null
+  tiers: ShippingTier[]
+  /** Customers with metadata.premium_member ship free (T21 hook). */
+  premium_free_shipping: boolean
+  product_overrides: ShippingProductOverride[]
+}
+
+export function defaultShippingSettings(
+  overrides: Partial<ShippingSettings> = {}
+): ShippingSettings {
+  return {
+    enabled: true,
+    base_charge: 4900,
+    free_shipping_threshold: 49900,
+    tiers: [],
+    premium_free_shipping: false,
+    product_overrides: [],
+    ...overrides,
+  }
 }
 
 export type DivineKartSettings = {
@@ -138,6 +202,84 @@ export type DivineKartSettings = {
   whatsapp: WhatsappSettings
   invoicing: InvoicingSettings
   brm_notify: BrmNotifySettings
+  shipping: ShippingSettings
+  /** SMTP email transport (document-builder D6). Absent/disabled → log seam. */
+  smtp?: SmtpSettings
+  /** Order/pipeline document auto-dispatch (D7). */
+  doc_dispatch?: DocDispatchSettings
+}
+
+/** SMTP transport config (D6). `password` is write-only — never returned by GET. */
+export type SmtpSettings = {
+  enabled: boolean
+  host: string
+  port: number
+  secure: boolean // true = implicit TLS (465), false = STARTTLS (587)
+  user: string
+  password: string
+  from_name: string
+  from_email: string
+}
+
+/** Transactional provider presets for the admin settings UI (D6). */
+export const SMTP_PROVIDER_PRESETS: Record<
+  string,
+  { label: string; host: string; port: number; secure: boolean }
+> = {
+  ses: { label: "Amazon SES", host: "email-smtp.us-east-1.amazonaws.com", port: 587, secure: false },
+  sendgrid: { label: "SendGrid", host: "smtp.sendgrid.net", port: 587, secure: false },
+  mailgun: { label: "Mailgun", host: "smtp.mailgun.org", port: 587, secure: false },
+  gmail: { label: "Gmail", host: "smtp.gmail.com", port: 465, secure: true },
+  custom: { label: "Custom SMTP", host: "", port: 587, secure: false },
+}
+
+export function defaultSmtpSettings(): SmtpSettings {
+  return {
+    enabled: false,
+    host: "",
+    port: 587,
+    secure: false,
+    user: "",
+    password: "",
+    from_name: "DivineKart",
+    from_email: "",
+  }
+}
+
+/** Order/pipeline document auto-dispatch (document-builder D7). */
+export type DocDispatchEventConfig = {
+  enabled: boolean
+  /** Document kinds generated for this event, e.g. ["invoice"]. */
+  kinds: string[]
+  /** Also send the file over WhatsApp when a customer phone is known. */
+  whatsapp?: boolean
+}
+
+export type DocDispatchSettings = {
+  enabled: boolean
+  /** Append an expiring share-link to the delivery message (D4 signed URLs). */
+  attach_share_link: boolean
+  events: Record<string, DocDispatchEventConfig>
+}
+
+export const DOC_DISPATCH_EVENTS = [
+  "order_placed",
+  "order_shipped",
+  "payment_captured",
+  "payment_refunded",
+] as const
+
+export function defaultDocDispatchSettings(): DocDispatchSettings {
+  return {
+    enabled: false,
+    attach_share_link: true,
+    events: {
+      order_placed: { enabled: false, kinds: ["invoice"] },
+      order_shipped: { enabled: false, kinds: ["waybill"], whatsapp: false },
+      payment_captured: { enabled: false, kinds: ["payment_receipt"] },
+      payment_refunded: { enabled: false, kinds: [] },
+    },
+  }
 }
 
 export const SETTINGS_KEY = "divinekart_settings"
@@ -170,7 +312,8 @@ export const BRM_NOTIFY_EVENT_LABELS: Record<BrmNotifyEventKey, string> = {
 export function defaultBrmChannel(overrides: Partial<BrmChannelConfig> = {}): BrmChannelConfig {
   return {
     whatsapp: { enabled: false, template: "" },
-    email: { enabled: false, subject: "", body: "" },
+    email: { enabled: false, subject: "", body: "", template_id: null },
+    document: { enabled: false, doc_kind: "", template_id: null },
     ...overrides,
   }
 }
@@ -239,6 +382,9 @@ export const defaultSettings: DivineKartSettings = {
     footer_note: "Thank you for shopping at DivineKart! 🙏",
   },
   brm_notify: defaultBrmNotifySettings(),
+  shipping: defaultShippingSettings(),
+  smtp: defaultSmtpSettings(),
+  doc_dispatch: defaultDocDispatchSettings(),
 }
 
 /** Deep-merge a partial update into the default settings (survives drifts). */
@@ -250,6 +396,9 @@ export function mergeSettings(partial: Partial<DivineKartSettings>): DivineKartS
     whatsapp: { ...defaultSettings.whatsapp, ...(partial.whatsapp ?? {}) },
     invoicing: { ...defaultSettings.invoicing, ...(partial.invoicing ?? {}) },
     brm_notify: mergeBrmNotify(partial.brm_notify),
+    shipping: mergeShipping(partial.shipping),
+    smtp: { ...defaultSmtpSettings(), ...(partial.smtp ?? {}) },
+    doc_dispatch: { ...defaultDocDispatchSettings(), ...(partial.doc_dispatch ?? {}) },
   }
   return merged
 }
@@ -267,6 +416,7 @@ function mergeBrmNotify(
     events[key] = {
       whatsapp: { ...current.events[key].whatsapp, ...(patch.whatsapp ?? {}) },
       email: { ...current.events[key].email, ...(patch.email ?? {}) },
+      document: { ...defaultBrmChannel().document!, ...(current.events[key].document ?? {}), ...(patch.document ?? {}) },
     }
   }
   return {
@@ -415,6 +565,73 @@ function structureSettings(s: DivineKartSettings): DivineKartSettings {
       order_shipped_template: String(s.whatsapp?.order_shipped_template ?? ""),
     },
     brm_notify: structureBrmNotify(s.brm_notify),
+    shipping: mergeShipping(s.shipping),
+    smtp: {
+      enabled: Boolean(s.smtp?.enabled),
+      host: String(s.smtp?.host ?? ""),
+      port: Number(s.smtp?.port ?? 587),
+      secure: Boolean(s.smtp?.secure),
+      user: String(s.smtp?.user ?? ""),
+      password: String(s.smtp?.password ?? ""),
+      from_name: String(s.smtp?.from_name ?? "DivineKart"),
+      from_email: String(s.smtp?.from_email ?? ""),
+    },
+    doc_dispatch: structureDocDispatch(s.doc_dispatch),
+  }
+}
+
+/** Normalize the doc_dispatch blob (D7): known events only, string kinds. */
+function structureDocDispatch(raw?: Partial<DocDispatchSettings> | null): DocDispatchSettings {
+  const base = defaultDocDispatchSettings()
+  const events: DocDispatchSettings["events"] = { ...base.events }
+  for (const key of DOC_DISPATCH_EVENTS) {
+    const patch = raw?.events?.[key]
+    if (!patch) continue
+    events[key] = {
+      enabled: Boolean(patch.enabled),
+      kinds: Array.isArray(patch.kinds)
+        ? patch.kinds.map((k) => String(k)).filter(Boolean)
+        : base.events[key].kinds,
+      whatsapp: Boolean(patch.whatsapp),
+    }
+  }
+  return {
+    enabled: Boolean(raw?.enabled),
+    attach_share_link: raw?.attach_share_link !== false,
+    events,
+  }
+}
+
+/** Deep-merge shipping settings over defaults, normalizing arrays (T18). */
+function mergeShipping(partial?: Partial<ShippingSettings> | null): ShippingSettings {
+  const base = defaultShippingSettings()
+  const tiers = Array.isArray(partial?.tiers)
+    ? partial!.tiers
+        .map((t) => ({ min_qty: Number(t?.min_qty ?? 0), base_charge: Number(t?.base_charge ?? 0) }))
+        .filter((t) => Number.isFinite(t.min_qty) && Number.isFinite(t.base_charge))
+        .sort((a, b) => a.min_qty - b.min_qty)
+    : []
+  const product_overrides = Array.isArray(partial?.product_overrides)
+    ? partial!.product_overrides
+        .filter((o) => o?.product_id)
+        .map((o) => ({
+          product_id: String(o.product_id),
+          charge_per_unit:
+            o.charge_per_unit == null ? null : Math.max(0, Number(o.charge_per_unit) || 0),
+          free_shipping: Boolean(o.free_shipping),
+          parcel_vendor: o.parcel_vendor ? String(o.parcel_vendor) : null,
+        }))
+    : []
+  return {
+    enabled: Boolean(partial?.enabled ?? base.enabled),
+    base_charge: Math.max(0, Number(partial?.base_charge ?? base.base_charge) || 0),
+    free_shipping_threshold:
+      partial?.free_shipping_threshold == null
+        ? null
+        : Math.max(0, Number(partial.free_shipping_threshold) || 0),
+    tiers,
+    premium_free_shipping: Boolean(partial?.premium_free_shipping ?? base.premium_free_shipping),
+    product_overrides,
   }
 }
 
@@ -434,6 +651,12 @@ function structureBrmNotify(raw?: Partial<BrmNotifySettings> | null): BrmNotifyS
         enabled: Boolean(patch.email?.enabled ?? base.events[key].email.enabled),
         subject: String(patch.email?.subject ?? base.events[key].email.subject ?? ""),
         body: String(patch.email?.body ?? base.events[key].email.body ?? ""),
+        template_id: patch.email?.template_id ?? base.events[key].email.template_id ?? null,
+      },
+      document: {
+        enabled: Boolean(patch.document?.enabled ?? base.events[key].document?.enabled ?? false),
+        doc_kind: String(patch.document?.doc_kind ?? base.events[key].document?.doc_kind ?? ""),
+        template_id: patch.document?.template_id ?? base.events[key].document?.template_id ?? null,
       },
     }
   }

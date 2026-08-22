@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **Resolved**
 - Blocking: D6, D7
 - Blocked by: D2, D3
 
@@ -23,3 +23,6 @@ How does the admin dashboard get a drag-and-drop template builder for PDF docume
 - Live: create a waybill template by dragging blocks + placeholders; save → reload → PDF preview renders.
 - Email builder round-trips a saved Unlayer design (load → edit → export → save).
 - Existing admin pages intact.
+## Resolution
+
+v1 ships code-editor mode: /documents/templates list+seed, /[id] editor (geometry, watermark, chips picker from new /catalog endpoint, sandboxed live preview w/ engine fallback rule); Unlayer email editor at /email-templates/[id]/edit with loadDesign/saveDesign/exportHtml round-trip + HTML fallback seam if CDN unreachable; issued-docs browser /documents/issued with share-link minting. dnd-kit sectional + absolute canvas deferred as fog.

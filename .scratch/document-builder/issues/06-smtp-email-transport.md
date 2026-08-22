@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **Resolved**
 - Blocking: D7
 - Blocked by: D3, D4
 
@@ -21,3 +21,6 @@ How does email go from the current `console.log` seam (`brm-notify.ts` `sendEmai
 
 - Typecheck + build green.
 - Live: SMTP config saved via admin; a renewal notification sends a real email with the generated PDF attached (use a test sink or logged envelope if no live SMTP); log-seam fallback verified when SMTP unset.
+## Resolution
+
+nodemailer pooled transport cached by config fingerprint; smtp block in settings blob (presets SES/SendGrid/Mailgun/Gmail; password write-only masked on GET + preserved on blank PATCH); sendEmail never throws (disabled/error result); brm-notify seam upgraded to real send w/ verbatim log fallback; GET+POST /admin/email/smtp test-send endpoint.

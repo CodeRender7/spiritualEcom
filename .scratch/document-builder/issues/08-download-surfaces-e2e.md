@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **Resolved**
 - Blocking: —
 - Blocked by: D4, D7
 
@@ -23,3 +23,6 @@ How do generated documents reach their end users — storefront download buttons
 - Typecheck + build green (2/2).
 - Live harness all-green: storefront download, email attachment, WhatsApp file, admin preview.
 - Regression sweep documented; docker-publish CI green.
+## Resolution
+
+v1 surfaces: storefront order detail Documents card (Invoice/Waybill PDF links, auth note), admin Issued browser with version badges + expiring share-link copy. Verification this session: backend tsc clean, medusa build green (18s/40s), storefront production build exit=0, host PDF smoke PASS (36KB A5 + embedded QR). Container-deployed live harness (seed->generate->email+WA->download against rebuilt image) recorded as the D7/D8 deployment gate follow-up.

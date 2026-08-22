@@ -1,4 +1,5 @@
 import { Modules } from "@medusajs/framework/utils"
+import { getStoreSettings } from "./settings"
 
 /**
  * Document template gallery domain logic (document-builder D2, ADR-0002).
@@ -92,6 +93,21 @@ export const DOC_KEY_CATALOG: Record<string, { key: string; value: string; descr
     { key: "valid_until", value: "2026-09-17", description: "Quotation validity date" },
     { key: "terms", value: "50% advance, balance on dispatch. Prices inclusive of GST.", description: "Terms & conditions line" },
   ],
+  subscription: [
+    { key: "offer", value: "Divine Daily Darshan", description: "Offer / plan code" },
+    { key: "subscription", value: "sub_01J...", description: "Subscription id" },
+    { key: "amount", value: "₹499", description: "Charge / plan amount" },
+    { key: "period_end", value: "17 SEP 2026", description: "Current period end date" },
+    { key: "status", value: "active", description: "Subscription status" },
+    { key: "attempts", value: "1", description: "Renewal attempt number" },
+    { key: "next_retry", value: "20 AUG 2026", description: "Next retry date" },
+  ],
+  refund: [
+    { key: "refund_id", value: "rfnd_1AbC2dE3f", description: "Refund transaction id" },
+    { key: "refund_amount", value: "₹499.00", description: "Refunded amount" },
+    { key: "refund_reason", value: "Customer request", description: "Refund reason" },
+    { key: "refund_date", value: "17 AUG 2026", description: "Refund date" },
+  ],
   logistics: [
     { key: "carrier_name", value: "BlueDart", description: "Carrier / courier name" },
     { key: "tracking_id", value: "BDA1A0000000001", description: "Tracking / AWB number" },
@@ -109,6 +125,14 @@ export const DOC_KEY_CATALOG: Record<string, { key: string; value: string; descr
     { key: "weight_kg", value: "3.5", description: "Declared weight (kg)" },
     { key: "invoice_value", value: "₹5,000", description: "Declared invoice value" },
     { key: "charges_paid", value: "₹220", description: "Freight charges paid" },
+  ],
+  qrcode: [
+    {
+      key: "qrcode",
+      value: "RECEIPT-$receipt_number",
+      description:
+        "Special block — renders a scannable QR of the payload; $key refs resolve from the event's variables at render time (D4 engine).",
+    },
   ],
 }
 
@@ -251,7 +275,7 @@ const RECEIPT = `
     <div class="thanks">Thank you for shopping at {{company_name:DivineKart}}.<br>
       Please retain this slip for returns or warranty.<br>
       Support: {{company_email:support@divinekart.com}}</div>
-    <div class="qr">QR · {{receipt_number:RCPT-2026-000123}}</div>
+    <div class="qr">{{qrcode:RECEIPT-$receipt_number}}</div>
   </div>
 </body></html>
 `
@@ -568,6 +592,252 @@ export function resolveDocumentTemplateService(container: any): any {
 export const ALLOWED_DOC_KINDS: string[] = [...DOC_KINDS]
 export const ALLOWED_PAGE_SIZES: string[] = [...PAGE_SIZES]
 export const ALLOWED_PAGE_ORIENTATIONS: string[] = [...PAGE_ORIENTATIONS]
+
+/* ------------------------------------------------------------------ */
+/* D3 — per-event key catalog, suggestive selection, var collection     */
+/* ------------------------------------------------------------------ */
+
+const keys = (...groups: (keyof typeof DOC_KEY_CATALOG)[]): string[] =>
+  groups.flatMap((g) => (DOC_KEY_CATALOG[g] ?? []).map((e) => e.key))
+
+/** Company + order basics every document can rely on. */
+const ORDER_BASE = keys("company", "order", "payment")
+
+/**
+ * Available placeholder keys per pipeline event / document kind
+ * (document-builder D3). The builder picker and suggestDocTemplatesForEvent
+ * read from this; keep it honest against what collectDocumentVars actually
+ * produces at runtime.
+ */
+export const EVENT_DOC_KEYS: Record<string, string[]> = {
+  // Document kinds (kind-driven generation, any trigger)
+  invoice: [...ORDER_BASE],
+  receipt: [...ORDER_BASE],
+  e_bill: [...ORDER_BASE],
+  payment_receipt: [...ORDER_BASE, ...keys("payment_receipt")],
+  quote: [...keys("quote"), "customer_name", "billing_address", "subtotal", "tax_amount", "grand_total"],
+  waybill: [...ORDER_BASE, ...keys("logistics")],
+  transit_memo: [...ORDER_BASE, ...keys("logistics")],
+  custom: [...new Set(Object.values(DOC_KEY_CATALOG).flatMap((g) => g.map((e) => e.key)))],
+
+  // Order pipeline events (D7 dispatch)
+  order_placed: [...keys("company", "order", "payment")],
+  order_shipped: [...ORDER_BASE, ...keys("logistics")],
+  payment_captured: [...ORDER_BASE, ...keys("payment_receipt")],
+  payment_refunded: [...ORDER_BASE, ...keys("payment_receipt", "refund")],
+
+  // BRM lifecycle events (vars mirror brm-notify buildVars)
+  activated: [...keys("subscription", "order")],
+  renewal_success: [...keys("subscription", "order", "payment_receipt")],
+  renewal_failure: [...keys("subscription", "order")],
+  grace_start: [...keys("subscription", "order")],
+  past_due: [...keys("subscription", "order")],
+  paused: [...keys("subscription", "order")],
+  cancelled: [...keys("subscription", "order")],
+  expiry_warning: [...keys("subscription", "order")],
+}
+
+/**
+ * Suggest active pdf templates for a pipeline event: a template qualifies when
+ * its parsed placeholder keys ⊆ the event's available keys. Exact key-set
+ * matches rank first (mirrors suggestTemplatesForEvent for emails).
+ */
+export function suggestDocTemplatesForEvent(templates: any[], eventKey: string): any[] {
+  const available = new Set(EVENT_DOC_KEYS[eventKey] ?? [])
+  const scored = templates
+    .map((t) => {
+      const ph: { key: string }[] = Array.isArray(t.placeholders) ? t.placeholders : []
+      const needed = ph.map((p) => p.key).filter((k) => k !== "qrcode")
+      const missing = needed.filter((k) => !available.has(k))
+      return { t, neededCount: needed.length, missingCount: missing.length }
+    })
+    .filter((s) => s.missingCount === 0)
+  // Most specific template (uses the most of the event's keys) first.
+  scored.sort((a, b) => b.neededCount - a.neededCount)
+  return scored.map((s) => s.t)
+}
+
+/** Merge arbitrary entity metadata as vars; built-in keys always win. */
+function mergeMetadataVars(
+  vars: Record<string, string>,
+  metadata: Record<string, any> | null | undefined
+): Record<string, string> {
+  if (!metadata || typeof metadata !== "object") return vars
+  for (const [k, v] of Object.entries(metadata)) {
+    if (k in vars) continue // built-ins are authoritative
+    if (v === null || v === undefined) continue
+    if (typeof v === "object") continue
+    vars[k] = String(v)
+  }
+  return vars
+}
+
+const fmtDate = (d: any): string =>
+  d
+    ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : ""
+
+const escHtml = (s: any): string =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+
+const inrFmt = (n: any): string => `₹${Number(n || 0).toLocaleString("en-IN")}`
+
+/** Order → template variables. Lives here (not in the generator) so both the generator and D7's dispatcher share one source of truth. */
+export async function collectOrderVars(
+  container: any,
+  order: any
+): Promise<Record<string, string>> {
+  const settings = await getStoreSettings(container)
+  const inv = settings.invoicing ?? {}
+  const addr = order?.shipping_address ?? {}
+  const items = order?.items ?? []
+  const customerName =
+    [addr.first_name, addr.last_name].filter(Boolean).join(" ") || "Customer"
+
+  const displayId = String(order?.display_id ?? order?.id ?? "")
+  const dateStr = fmtDate(order?.created_at)
+
+  const rows = items
+    .map(
+      (it: any, i: number) =>
+        `<tr><td>${i + 1}</td><td>${escHtml(it.title)}</td><td>${Number(it.quantity ?? 0)}</td>` +
+        `<td class="nums">${inrFmt(it.unit_price)}</td><td class="nums">${inrFmt(it.subtotal)}</td></tr>`
+    )
+    .join("")
+
+  const addressOneLine = [
+    addr.address_1,
+    addr.address_2,
+    addr.city,
+    addr.province,
+    addr.postal_code,
+  ]
+    .filter(Boolean)
+    .join(", ")
+
+  const vars: Record<string, string> = {
+    company_name: inv.company_name || "DivineKart",
+    company_address: inv.company_address || "",
+    company_gstin: inv.gstin || "",
+    company_email: inv.contact_email || "",
+
+    order_id: displayId,
+    invoice_number: `INV-${displayId}`,
+    receipt_number: `RCPT-${displayId}`,
+    waybill_number: `WB-${displayId}`,
+    consignment_no: `CN-${displayId}`,
+    memo_no: `TM-${displayId}`,
+    quote_no: `QT-${displayId}`,
+    order_date: dateStr,
+    order_status: order?.status ?? "",
+    payment_status: order?.payment_status ?? order?.status ?? "",
+    customer_name: customerName,
+    customer_phone: addr.phone ?? "",
+    customer_email: order?.email ?? addr.email ?? "",
+    billing_address: addressOneLine,
+    shipping_address: addressOneLine,
+
+    subtotal: inrFmt(order?.subtotal),
+    discount: inrFmt(order?.discount_total),
+    tax_amount: inrFmt(order?.tax_total),
+    shipping_cost: inrFmt(order?.shipping_total),
+    grand_total: inrFmt(order?.total),
+    amount: Number(order?.total ?? 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+    }),
+    currency: "INR",
+
+    line_items: rows,
+    items_html: rows,
+    order_items_count: `${items.length} item${items.length === 1 ? "" : "s"}`,
+  }
+
+  return mergeMetadataVars(vars, order?.metadata)
+}
+
+/** Subscription → template variables (BRM events; mirrors brm-notify buildVars naming). */
+export async function collectSubscriptionVars(
+  container: any,
+  input: {
+    subscription: any
+    amount?: number | string | null
+    attempts?: number | null
+    nextRetry?: string | Date | null
+  }
+): Promise<Record<string, string>> {
+  const sub = input.subscription ?? {}
+  const brm = container.resolve("brm")
+
+  let offerCode = ""
+  try {
+    const offers = await brm.listOfferTemplates({ id: sub.offer_template_id })
+    offerCode = String(offers[0]?.code ?? sub.offer_template_id ?? "")
+  } catch {
+    offerCode = String(sub.offer_template_id ?? "")
+  }
+
+  let name = "Customer"
+  let phone = ""
+  try {
+    if (sub.customer_id) {
+      const customers = container.resolve(Modules.CUSTOMER)
+      const found = await customers.listCustomers({ id: sub.customer_id }, { take: 1 })
+      if (found[0]) {
+        name = [found[0].first_name, found[0].last_name].filter(Boolean).join(" ") || name
+        phone = found[0].phone ?? ""
+      }
+    }
+  } catch {
+    /* customer lookup is best-effort */
+  }
+
+  const vars: Record<string, string> = {
+    name,
+    phone,
+    offer: offerCode,
+    subscription: String(sub.id ?? ""),
+    amount:
+      input.amount !== undefined && input.amount !== null
+        ? typeof input.amount === "number"
+          ? inrFmt(input.amount)
+          : String(input.amount)
+        : String(sub.metadata?.last_charged_amount ?? ""),
+    period_end: fmtDate(sub.current_period_end),
+    status: String(sub.status ?? ""),
+    attempts: String(input.attempts ?? sub.metadata?.renewal_attempts ?? ""),
+    next_retry: fmtDate(input.nextRetry ?? sub.metadata?.next_retry_at),
+
+    // Order-shaped aliases so subscription documents reuse invoice layouts.
+    customer_name: name,
+    customer_phone: phone,
+    currency: "INR",
+  }
+
+  return mergeMetadataVars(vars, sub.metadata)
+}
+
+/**
+ * Unified resolver (D3 contract): assemble runtime vars for an entity so
+ * render and builder-preview share one source of truth.
+ */
+export async function collectDocumentVars(
+  container: any,
+  options: { entityType: "order" | "subscription"; entity: any; amount?: any; attempts?: any; nextRetry?: any }
+): Promise<Record<string, string>> {
+  if (options.entityType === "subscription") {
+    return collectSubscriptionVars(container, {
+      subscription: options.entity,
+      amount: options.amount,
+      attempts: options.attempts,
+      nextRetry: options.nextRetry,
+    })
+  }
+  return collectOrderVars(container, options.entity)
+}
 
 /* ------------------------------------------------------------------ */
 /* Versioned issuance (ADR-0002 §9) — the write path D4/D7 consume.    */

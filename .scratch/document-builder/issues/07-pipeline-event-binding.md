@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **Resolved**
 - Blocking: D8
 - Blocked by: D2, D3, D4, D5, D6
 
@@ -23,3 +23,6 @@ How do workflow-pipeline stages bind a document template (and/or email template)
 - Typecheck + build green.
 - Live: bind a renewal-failure document template; trigger a renewal failure; dispatcher generates the PDF and sends it (email attachment + WhatsApp file).
 - Unbound events still send the inline body exactly as before.
+## Resolution
+
+Per-BRM-event document channel (enabled/doc_kind/template_id) in settings blob; notifyBrmEvent guarded doc dispatch (subscription entityType, amount/attempts/next_retry extraVars); order/payment auto-dispatch subscriber (order.placed|fulfillment_created|payment.captured|payment.refund.created) gated by doc_dispatch settings (default OFF, kinds per event, optional WhatsApp); dispatchDocument engine: version persist -> email attachment (+30-day signed share link in body/caption) -> WhatsApp file send 3-attempt retry -> audit written to version.metadata.dispatch. sendDocumentFile added to whatsapp-session.
