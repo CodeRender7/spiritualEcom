@@ -63,6 +63,12 @@ export default defineConfig({
       resolve: "./src/modules/brm",
     },
     {
+      resolve: "./src/modules/email-template",
+    },
+    {
+      resolve: "./src/modules/document",
+    },
+    {
       resolve: "@medusajs/medusa/auth",
       options: {
         providers: [
