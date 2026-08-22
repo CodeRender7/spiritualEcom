@@ -29,6 +29,10 @@ DivineKart is a self-hosted e-commerce platform for Hindu religious & spiritual 
 | **Harness pattern** | Linear pipeline: `/wayfinder` → `/to-spec` → `/to-tickets` → `/implement` → `/tdd` → `/code-review` → `/handoff`. For new features. |
 | **Loop pattern** | Iterative cycle: `/diagnosing-bugs` → `/tdd` → `/code-review` → repeat. For bug fixing. |
 | **Graph pattern** | Parallel exploration: multiple analysis skills run simultaneously → synthesize decisions. For architecture review. |
+| **Document Template** | Entity defining layout, format (`pdf`/`email`/`html`), document kind (`invoice`, `waybill`, `transit_memo`, `receipt`, `e_bill`, `payment_receipt`), page geometry, and `{{key:value}}` placeholders. See ADR-0002. |
+| **Document Kind** | A specific renderable document: `invoice` (GST tax), `waybill` (shipping label), `transit_memo` (logistics manifest), `receipt` (proof of purchase), `e_bill` (digital bill), `payment_receipt` (payment voucher). |
+| **Placeholder Catalog** | Registry of typed `{{key:value}}` data variables (Order, Payment, Subscription/BRM, Logistics, Company, Metadata) used by the builder and the renderer. |
+| **PDF Engine** | Server-side Puppeteer renderer using Alpine system `chromium` in Docker that renders document templates to immutable PDF files. |
 
 ## Layout rules
 

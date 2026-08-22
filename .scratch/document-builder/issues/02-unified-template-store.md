@@ -2,7 +2,7 @@
 
 - Map: `.scratch/document-builder/map.md`
 - Labels: `wayfinder:task`
-- Status: Open
+- Status: **In progress — claimed by CodeRender7 (session 2026-08-17)**
 - Blocking: D3, D4, D7
 - Blocked by: —
 
@@ -12,9 +12,10 @@ How do document templates (waybill, transit memo, receipt, e-bill, payment recei
 
 ## Decide + build
 
-1. **Store shape**: extend `email_template` with a kind discriminator vs a sibling `document_template` module (same MedusaService pattern). Consider: shared `{{key:value}}` placeholders, `design` JSON, page geometry (format: A4/A5/letter, orientation, margins), doc_kind enum, status, tags, category.
-2. **Admin CRUD API** for document templates: list/filter (doc_kind, status, category), get, create, patch, delete, seed — mirroring `/admin/email-templates`.
-3. **No regression**: email gallery endpoints + E1 seed behavior unchanged; document routes additive.
+1. **Store shape**: extend `email_template` with a kind discriminator vs a sibling `document_template` module (same MedusaService pattern). Consider: shared `{{key:value}}` placeholders, `design` JSON, page geometry (format: A4/A5/letter, orientation, margins), doc_kind enum (invoice, waybill, transit_memo, receipt, e_bill, payment_receipt, quote, custom), status, tags, category.
+2. **Versioned issuance records**: `document` (+ `document_version`) entities so every pipeline emission or reprint appends an immutable version per order/subscription + kind — **all versions stay retrievable** (ADR-0002 §9). File URL points at the Medusa File module asset (MinIO/S3 when configured); HTML snapshot kept for regenerate-on-demand.
+3. **Admin CRUD API** for document templates: list/filter (doc_kind, status, category), get, create, patch, delete, seed — mirroring `/admin/email-templates`; plus document/version listing endpoints for D8's admin surface.
+4. **No regression**: email gallery endpoints + E1 seed behavior unchanged; document routes additive.
 
 ## Verification
 

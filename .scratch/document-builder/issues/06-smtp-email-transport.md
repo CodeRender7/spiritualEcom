@@ -12,8 +12,8 @@ How does email go from the current `console.log` seam (`brm-notify.ts` `sendEmai
 
 ## Decide + build
 
-1. **Settings block**: add an `email`/`smtp` section to the `divinekart_settings` blob (host, port, secure, user, pass, from_name, from_email, enabled) via the admin settings UI (extend `/admin/settings` page) — admin-role configurable per the effort's requirement.
-2. **Transport**: nodemailer (or the D1-researched alternative) — `sendEmailWithAttachment({to, subject, html, attachments: [{filename, content: pdfBuffer}]})`; render subject/body from the bound template (D3), attach the D4 PDF.
+1. **Settings block**: add an `email`/`smtp` section to the `divinekart_settings` blob (host, port, secure, user, pass, from_name, from_email, enabled) via the admin settings UI (extend `/admin/settings`) — with **provider presets** (SES, SendGrid, Mailgun, Gmail) that prefill host/port/secure, and a **"Send Test Email"** button. Admin-role configurable per the effort's requirement.
+2. **Transport**: nodemailer — `sendEmailWithAttachment({to, subject, html, attachments: [{filename, content: pdfBuffer}]})`; render subject/body from the bound template (D3), attach the D4 PDF.
 3. **Seam replacement**: `brm-notify.ts` email path sends through the real transport when `email.enabled` + SMTP set; falls back to the log seam otherwise (no regression to A5).
 4. **No regression**: WhatsApp path, inline email bodies, and existing settings read/write unaffected.
 
