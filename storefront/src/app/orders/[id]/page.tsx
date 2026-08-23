@@ -7,7 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { fetchOrder } from "@/lib/api";
-import type { Order } from "@/lib/api";
+import type { Order, OrderItem } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 
 function statusLabel(status: string): string {
@@ -37,7 +37,7 @@ export default function OrderDetailPage() {
     if (!params.id) return;
     fetchOrder(params.id)
       .then(setOrder)
-      .catch((e) => setError((e as Error).message || "Could not load order."));
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load order."));
   }, [params.id]);
 
   if (error) {
@@ -94,7 +94,7 @@ export default function OrderDetailPage() {
           <div>
             <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "16px" }}>Order Items</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "16px", background: "var(--bg-card)" }}>
-              {order.items.map((item) => (
+              {order.items.map((item: OrderItem) => (
                 <div key={item.id} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                   <img
                     src={item.thumbnail || undefined}
