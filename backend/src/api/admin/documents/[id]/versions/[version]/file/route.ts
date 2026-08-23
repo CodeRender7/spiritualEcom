@@ -33,19 +33,39 @@ export const GET = async (
     }
 
     if (version.file_url) {
-      // Same-origin proxy keeps admin auth meaningful end-to-end.
-      const fileRes = await fetch(version.file_url)
-      if (fileRes.ok) {
-        const buf = Buffer.from(await fileRes.arrayBuffer())
-        res.setHeader("Content-Type", "application/pdf")
-        res.setHeader(
-          "Content-Disposition",
-          `inline; filename="${headers[0].kind}-v${version.version_number}.pdf"`
+      // Candidate URLs, most reliable first. The public file_url uses the
+      // HOST-mapped MinIO port — unreachable from inside the container's
+      // network namespace ("fetch failed") — so prefer the internal
+      // endpoint/bucket path rebuilt from env, then the public URL, then the
+      // HTML-snapshot regeneration below.
+      const candidates: string[] = []
+      const objectKey =
+        version.file_key || version.file_url?.split("/").pop() || null
+      if (objectKey && process.env.S3_ENDPOINT && process.env.S3_BUCKET) {
+        candidates.push(
+          `${process.env.S3_ENDPOINT}/${process.env.S3_BUCKET}/${objectKey}`
         )
-        return res.send(buf)
+      }
+      if (version.file_url) candidates.push(version.file_url)
+
+      for (const url of candidates) {
+        try {
+          const fileRes = await fetch(url)
+          if (fileRes.ok) {
+            const buf = Buffer.from(await fileRes.arrayBuffer())
+            res.setHeader("Content-Type", "application/pdf")
+            res.setHeader(
+              "Content-Disposition",
+              `inline; filename="${headers[0].kind}-v${version.version_number}.pdf"`
+            )
+            return res.send(buf)
+          }
+        } catch {
+          /* try next candidate */
+        }
       }
       console.warn(
-        `File asset unreachable (${version.file_url}) — regenerating from snapshot`
+        `File asset unreachable (${candidates.join(", ")}) — regenerating from snapshot`
       )
     }
 
