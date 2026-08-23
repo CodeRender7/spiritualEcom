@@ -52,7 +52,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const host = req.get?.("host") ?? req.headers?.host ?? "localhost:9000"
 
     return res.json({
-      url: `${proto}://${host}/store/documents/shared?token=${token}`,
+      url: `${proto}://${host}/share/documents?token=${token}`,
       expires_at: expiresAt.toISOString(),
       version_number: version.version_number,
     })
