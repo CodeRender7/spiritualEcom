@@ -18,7 +18,17 @@ COPY backend ./backend
 RUN pnpm --filter divinekart-backend run build
 
 FROM node:24-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS runner
-RUN apk add --no-cache bash curl postgresql-client && corepack enable
+# Chromium (musl build) powers the Puppeteer PDF engine (document-builder D4);
+# Noto fonts cover the ₹ glyph and Devanagari names in rendered documents;
+# tini is PID 1 so Chromium children are reaped cleanly on container stop.
+RUN apk add --no-cache bash curl postgresql-client \
+    chromium \
+    font-dejavu \
+    font-noto-devanagari \
+    tini \
+    && corepack enable
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 WORKDIR /app
 COPY --from=builder /repo/backend/package.json ./
 COPY --from=builder /repo/backend/medusa-config.ts ./
@@ -31,4 +41,4 @@ COPY --from=builder /repo/node_modules ./node_modules
 RUN chmod +x ./scripts/entrypoint.sh
 
 EXPOSE 9000
-ENTRYPOINT ["bash", "./scripts/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "bash", "./scripts/entrypoint.sh"]

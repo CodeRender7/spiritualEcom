@@ -15,3 +15,7 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   protobufjs: true
+  # D1 contract: NEVER run puppeteer's postinstall — it would download glibc
+  # Chrome-for-Testing (~282MB), which cannot execute on Alpine (musl) anyway.
+  # The container uses system chromium; Windows dev probes Edge/Chrome.
+  puppeteer: false

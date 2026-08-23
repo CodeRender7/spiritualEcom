@@ -1,26 +1,16 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { buildInvoiceDocument } from "../../../../../lib/invoice"
+import { serveOrderDocument } from "../../../../../lib/document-generator"
 
 /**
- * Store-facing invoice/waybill document. Renders a print-ready HTML page that
- * customers (or the admin) can save as PDF. Respects invoicing.enabled.
+ * Store-facing tax invoice document (document-builder D4).
  *
- * GET /store/orders/:id/invoice        → Tax Invoice
- * GET /store/orders/:id/waybill        → Delivery Waybill
+ * Default: real PDF (application/pdf) rendered server-side via Puppeteer.
+ * `?format=html` → the legacy print-ready page.
+ * Auth required: admin ("user"), or the customer who owns the order
+ * (`req.auth_context.actor_id` — same pattern as /store/referrals/me).
+ *
+ * GET /store/orders/:id/invoice?format=html|pdf
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const orderId = req.params.id as string
-  const kind = req.url.includes("/waybill") ? "waybill" : "invoice"
-
-  const { html, enabled, order } = await buildInvoiceDocument(req.scope, orderId, { kind })
-
-  if (!enabled) {
-    return res.status(403).json({ message: "Invoicing is disabled for this store." })
-  }
-  if (!order) {
-    return res.status(404).json({ message: "Order not found." })
-  }
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8")
-  return res.send(html)
+  return serveOrderDocument(req, res, "invoice")
 }

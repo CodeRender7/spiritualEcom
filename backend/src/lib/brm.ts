@@ -1,5 +1,6 @@
 import { Modules } from "@medusajs/framework/utils"
 import { notifyBrmEvent } from "./brm-notify"
+import { buildAutoChargeChain, logRouteDecision } from "./payment-router"
 
 /**
  * BRM (Business Revenue Management) domain logic — T9 runtime (A4).
@@ -336,6 +337,17 @@ export async function processRenewals(container: any): Promise<{
         continue
       }
 
+      // T10: order artifact for this cycle, generated from the item snapshots.
+      const renewalOrderId = await createRenewalOrder(
+        container,
+        sub,
+        template,
+        items,
+        amount,
+        chargeResult.paymentId,
+        { start: nextStart, end: nextEnd }
+      )
+
       await brm.updateSubscriptions({
         id: sub.id,
         status: "active",
@@ -343,7 +355,12 @@ export async function processRenewals(container: any): Promise<{
         current_period_end: nextEnd,
         cycles_remaining: cyclesLeft,
         grace_until: new Date(nextEnd.getTime() + graceDays * 86_400_000),
-        metadata: { ...(sub.metadata ?? {}), renewal_attempts: 0, next_retry_at: null },
+        metadata: {
+          ...(sub.metadata ?? {}),
+          renewal_attempts: 0,
+          next_retry_at: null,
+          last_renewal_order_id: renewalOrderId ?? null,
+        },
       })
       // A5: renewal charged OK — confirm to the customer.
       await notifyBrmEvent(container, "renewal_success", {
@@ -408,27 +425,129 @@ export async function processRenewals(container: any): Promise<{
 }
 
 /**
- * The T7 router seam for renewal auto-charge. Today this best-effort tries a
- * payment session via the payment module; T32 replaces the body with the
- * weighted round-robin router while keeping this signature.
+ * T10: generate a Medusa Order from the subscription_item snapshots for a
+ * successful renewal cycle. Gives billing/invoicing (T17) a concrete artifact
+ * per cycle and makes renewals visible in the orders admin. Never throws —
+ * an order-generation failure must not break the BRM state machine.
+ */
+async function createRenewalOrder(
+  container: any,
+  sub: any,
+  template: any,
+  items: any[],
+  amount: number,
+  paymentId?: string,
+  cycle?: { start?: Date | null; end?: Date | null }
+): Promise<string | null> {
+  try {
+    const orderModule = container.resolve(Modules.ORDER)
+    const tplName = String(template?.name ?? "Subscription")
+    const lineItems = (items ?? []).map((it: any) => ({
+      title: it.product_id
+        ? `${tplName} — ${String(it.product_id)}`
+        : `${tplName} — plan line ${String(it.plan_line_id ?? "")}`.trim(),
+      quantity: it.quantity ?? 1,
+      unit_price: it.unit_price ?? 0,
+    }))
+    if (!lineItems.length) {
+      // No snapshot rows: single summary line priced at the charged amount.
+      lineItems.push({ title: `${tplName} — renewal`, quantity: 1, unit_price: amount })
+    }
+    const order = await orderModule.createOrders({
+      customer_id: sub.customer_id,
+      currency_code: sub.currency ?? "inr",
+      status: "completed",
+      items: lineItems,
+      metadata: {
+        brm_subscription_id: sub.id,
+        brm_renewal: "true",
+        brm_payment_id: paymentId ?? null,
+        cycle_start: cycle?.start?.toISOString?.() ?? null,
+        cycle_end: cycle?.end?.toISOString?.() ?? null,
+      },
+    })
+    console.log(
+      `[brm] renewal order ${order?.id} created for ${sub.id} (amount ${amount}, payment ${paymentId ?? "-"})`
+    )
+    return order?.id ?? null
+  } catch (err: any) {
+    console.error(`[brm] renewal order generation failed for ${sub.id}:`, err?.message ?? err)
+    return null
+  }
+}
+
+/**
+ * The T7/T32 router seam for renewal auto-charge. Builds the fallback chain
+ * from T6 settings (saved method first, COD demoted, round-robin within the
+ * top tier) and walks it: each attempt creates a payment collection + session
+ * and authorizes server-side; the first provider that authorizes wins.
+ *
+ * Medusa v2 contract (bug fix): a payment session lives on a payment
+ * collection and `createPaymentSession` takes `(collectionId, sessionInput)`.
+ * Provider ids must be the registered module ids ("pp_cod_cod",
+ * "pp_razorpay_razorpay", "pp_hyperswitch_hyperswitch") — short admin input
+ * ("razorpay") is normalized. Authorization completes server-side for cod
+ * (offline) and hyperswitch (test-mode confirm); razorpay authorizes as a
+ * storefront-driven stub.
  */
 export async function attemptRenewalCharge(
   container: any,
   sub: any,
   amount: number
 ): Promise<{ ok: boolean; paymentId?: string; error?: string }> {
-  if (!sub.payment_method_id) {
-    return { ok: false, error: "no_payment_method" }
+  const { chain: candidates, reason } = await buildAutoChargeChain(container, {
+    savedProviderRef: sub.payment_method_id,
+  })
+  if (!candidates.length) {
+    return { ok: false, error: "no_eligible_provider" }
   }
+  const chain = candidates.map((c) => c.providerId)
+  logRouteDecision(
+    { key: candidates[0].key, providerId: chain[0], chain, reason },
+    { subscription_id: sub.id, amount }
+  )
+
+  let lastError = ""
+  for (const providerId of chain) {
+    try {
+      const result = await chargeViaProvider(container, sub, amount, providerId)
+      if (result.ok) return result
+      lastError = result.error ?? "authorization_failed"
+    } catch (err: any) {
+      lastError = err?.message ?? String(err)
+    }
+    console.warn(
+      `[payment-router] charge failed via ${providerId} for ${sub.id}: ${lastError} — falling back`
+    )
+  }
+  return { ok: false, error: lastError }
+}
+
+/** Charge one provider: collection → session → server-side authorize. */
+async function chargeViaProvider(
+  container: any,
+  sub: any,
+  amount: number,
+  providerId: string
+): Promise<{ ok: boolean; paymentId?: string; error?: string }> {
   try {
     const paymentModule = container.resolve(Modules.PAYMENT)
-    const created = await paymentModule.createPaymentSession({
-      provider_id: sub.payment_method_id,
+    const currency = sub.currency ?? "inr"
+
+    // v2: collection first, then the session on it.
+    const collection = await paymentModule.createPaymentCollections({
       amount,
-      currency_code: sub.currency ?? "inr",
+      currency_code: currency,
+      metadata: { brm_subscription_id: sub.id },
+    })
+    const session = await paymentModule.createPaymentSession(collection.id, {
+      provider_id: providerId,
+      amount,
+      currency_code: currency,
       data: { brm_subscription_id: sub.id, automatic: true },
     })
-    return { ok: Boolean(created?.id), paymentId: created?.id ?? undefined }
+    const payment = await paymentModule.authorizePaymentSession(session.id, {})
+    return { ok: Boolean(payment?.id), paymentId: payment?.id ?? undefined }
   } catch (err: any) {
     return { ok: false, error: err?.message ?? String(err) }
   }
@@ -453,7 +572,10 @@ export async function setSubscriptionStatus(
   // A5: admin lifecycle action → notify (cancelled is the primary target;
   // other admin-set states fall through the same dispatcher for future events).
   if (status === "cancelled") {
-    await notifyBrmEvent(container, "cancelled", { subscription: { ...sub, status }, template: undefined })
+    // Resolve the template so {offer} renders the code, not the id.
+    const [templates] = await Promise.all([brm.listOfferTemplates({ id: sub.offer_template_id })])
+    const template = templates[0]
+    await notifyBrmEvent(container, "cancelled", { subscription: { ...sub, status }, template })
   }
   return updated
 }

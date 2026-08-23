@@ -62,11 +62,29 @@ const AdminSettingsSchema = z.object({
       footer_note: z.string().optional(),
     })
     .optional(),
+  smtp: z
+    .object({
+      enabled: z.boolean().optional(),
+      host: z.string().max(255).optional(),
+      port: z.number().int().min(1).max(65535).optional(),
+      secure: z.boolean().optional(),
+      user: z.string().max(320).optional(),
+      password: z.string().max(512).optional(),
+      from_name: z.string().max(128).optional(),
+      from_email: z.string().email().or(z.literal("")).optional(),
+    })
+    .optional(),
 })
 
 export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const settings = await getStoreSettings(req.scope)
-  return res.json({ settings })
+  // D6: smtp.password is write-only — never leaves the server. Empty string
+  // tells the UI "a password may be set" without leaking it.
+  const masked = {
+    ...settings,
+    smtp: settings.smtp ? { ...settings.smtp, password: "" } : undefined,
+  }
+  return res.json({ settings: masked })
 }
 
 export const POST = async (
@@ -74,6 +92,15 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const partial = (req.validatedBody ?? req.body ?? {}) as Partial<DivineKartSettings>
+
+  // D6: the UI receives a MASKED smtp.password (always ""), so a patch that
+  // omits/blank-sends the password must preserve the stored one — otherwise
+  // every unrelated settings save would wipe SMTP credentials.
+  if (partial.smtp && !partial.smtp.password) {
+    const current = await getStoreSettings(req.scope)
+    partial.smtp.password = current.smtp?.password ?? ""
+  }
+
   const settings = await writeStoreSettings(req.scope, partial)
 
   // Sync region payment-provider links so enable/disable toggles take effect:

@@ -7,6 +7,13 @@ import {
 } from "./settings"
 import { pickConnectedSession, toWaId } from "./whatsapp-utils"
 import { sendMessage } from "./whatsapp-session"
+import {
+  renderEmailHtml,
+  renderEmailSubject,
+  resolveEmailTemplateService,
+} from "./email-templates"
+import { sendEmail } from "./emailer"
+import { dispatchDocument } from "./document-dispatch"
 
 /**
  * BRM notification flow (A5): routes BRM lifecycle events
@@ -136,15 +143,55 @@ async function sendWhatsAppMessage(phone: string, message: string): Promise<bool
 }
 
 /**
- * Log-based email sender seam. Renders subject + body and writes a structured
- * log line so the flow is end-to-end traceable before SMTP lands.
+ * Email seam (D6): real SMTP send when the admin has configured it, structured
+ * log line otherwise — the A5 traceable behavior is preserved verbatim as the
+ * fallback path. Never throws; returns whether the message went out.
  */
-function sendEmailSeam(email: string, subject: string, body: string): boolean {
+async function sendEmailSeam(
+  container: any,
+  email: string,
+  subject: string,
+  body: string
+): Promise<boolean> {
   if (!email || !subject) return false
-  console.log(
-    `[brm-notify:email] to=${email} subject=${JSON.stringify(subject)} body=${JSON.stringify(body)}`
-  )
-  return true
+  const result = await sendEmail(container, { to: email, subject, html: body })
+  if (result.sent) {
+    console.log(`[brm-notify:email] sent to=${email} messageId=${result.messageId}`)
+    return true
+  }
+  if (result.reason === "disabled") {
+    // SMTP not configured → legacy log seam (A5 behavior).
+    console.log(
+      `[brm-notify:email] to=${email} subject=${JSON.stringify(subject)} body=${JSON.stringify(body)}`
+    )
+    return true
+  }
+  console.error(`[brm-notify:email] delivery failed to=${email}: ${result.error}`)
+  return false
+}
+
+/**
+ * Load a bound gallery template by id (email-builder map E3). Returns the
+ * row only when it exists and is `active` — a deleted/disabled template falls
+ * back to the inline subject/body (never breaks the dispatch).
+ */
+async function loadBoundTemplate(container: any, templateId: string): Promise<{
+  subject: string
+  html: string
+} | null> {
+  try {
+    const service = resolveEmailTemplateService(container)
+    const rows = await service.listEmailTemplates(
+      { id: templateId, status: "active" },
+      { select: ["id", "subject", "html", "status"] }
+    )
+    const tpl = Array.isArray(rows) ? rows[0] : rows?.data?.[0]
+    if (!tpl) return null
+    return { subject: String(tpl.subject ?? ""), html: String(tpl.html ?? "") }
+  } catch (err) {
+    console.error("DivineKart BRM notify: bound template load failed:", err)
+    return null
+  }
 }
 
 /**
@@ -175,10 +222,51 @@ export async function notifyBrmEvent(
       if (ok) dispatched.push("whatsapp")
     }
 
-    if (cfg.email?.enabled && cfg.email.subject) {
-      const subject = renderBrmTemplate(cfg.email.subject, render)
-      const body = renderBrmTemplate(cfg.email.body || cfg.email.subject, render)
-      if (sendEmailSeam(customer.email, subject, body)) dispatched.push("email")
+    if (cfg.email?.enabled && (cfg.email.subject || cfg.email.template_id)) {
+      let subject = renderBrmTemplate(cfg.email.subject || "", render)
+      let body = renderBrmTemplate(cfg.email.body || cfg.email.subject || "", render)
+      if (cfg.email.template_id) {
+        const bound = await loadBoundTemplate(container, cfg.email.template_id)
+        if (bound) {
+          // Gallery template wins: HTML + subject rendered with {{key:value}}
+          // substitution (fallback to the placeholder's example value).
+          subject = renderEmailSubject(bound.subject, render)
+          body = renderEmailHtml(bound.html, render)
+        } else {
+          console.warn(
+            `DivineKart BRM notify: bound template ${cfg.email.template_id} ` +
+              `missing/inactive for ${event} — inline fallback`
+          )
+        }
+      }
+      if (await sendEmailSeam(container, customer.email, subject, body)) dispatched.push("email")
+    }
+
+    // Document channel (document-builder D7): generate the bound pdf for this
+    // lifecycle event and deliver it as an email attachment + WhatsApp file.
+    // Fully guarded — a document failure must not break the BRM state machine.
+    if (cfg.document?.enabled && cfg.document.doc_kind) {
+      try {
+        const outcome = await dispatchDocument(container, {
+          kind: cfg.document.doc_kind,
+          entityType: "subscription",
+          entityId: String(vars.subscription?.id ?? ""),
+          templateId: cfg.document.template_id || null,
+          toEmail: customer.email || null,
+          phone: customer.phone || null,
+          extraVars: {
+            amount: vars.amount,
+            attempts: vars.attempts,
+            next_retry: vars.next_retry,
+            offer: render.offer,
+            status: render.status,
+          },
+          generatedBy: "pipeline",
+        })
+        if (outcome.generated) dispatched.push("document")
+      } catch (err) {
+        console.error(`DivineKart BRM notify: document channel failed for ${event}:`, err)
+      }
     }
 
     return { dispatched: dispatched.length > 0, channels: dispatched }

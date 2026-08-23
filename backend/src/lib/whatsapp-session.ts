@@ -183,6 +183,24 @@ export async function sendImage(
   return { success: res.ok }
 }
 
+/** Send a generated document (pdf) by URL — document-builder D7. */
+export async function sendDocumentFile(
+  sessionKey: string,
+  to: string,
+  fileUrl: string,
+  filename: string,
+  caption?: string
+): Promise<{ success: boolean }> {
+  const res = await callOpenWA(
+    "sendFileFromUrl",
+    { to, url: fileUrl, caption: caption || "", filename },
+    30000,
+    sessionKey
+  )
+  if (!res.ok) console.error("DivineKart WhatsApp document send error:", res.error)
+  return { success: res.ok }
+}
+
 /**
  * Load persisted sessions from DB into memory. Reconciles the registry with
  * the DB: soft-deleted rows are dropped from memory and any DB rows missing
