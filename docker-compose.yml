@@ -65,6 +65,9 @@ services:
       - S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
       - S3_FORCE_PATH_STYLE=true
       - S3_URL=${S3_URL}
+      # Hyperswitch payment provider (T32) — key from the T16 spike.
+      - HYPER_PAYMENT_API_KEY=${HYPER_PAYMENT_API_KEY:-}
+      - HYPER_PAYMENT_MERCHANT_ID=${HYPER_PAYMENT_MERCHANT_ID:-divinekart}
     ports:
       - "9000:9000"
 
@@ -100,6 +103,7 @@ services:
       - minio_data:/data
     ports:
       - "9001:9001"   # console
+      - "9002:9000"   # S3 API (host) — S3_URL must point here for public file links
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -275,6 +279,97 @@ services:
       retries: 3
       start_period: 60s
 
+# ── Hyperswitch (self-host payments switch — T16 spike) ───────────
+  # Optional profile. Start with: docker compose --profile hyperswitch up -d
+  # Verifies self-host viability (intent -> confirm -> capture -> refund via
+  # the stripe_test dummy PSP) before T7 locks the payment architecture.
+  # NOTE: the router's docker_compose.toml hard-codes db_user/db_pass — the
+  # postgres must be initialized with those exact credentials (below). Fresh
+  # volumes work out of the box; an existing hyperswitch_pg_data volume
+  # created with different creds needs: CREATE ROLE db_user LOGIN SUPERUSER
+  # PASSWORD 'db_pass'; GRANT ALL ON DATABASE hyperswitch_db TO db_user;
+  hyperswitch-pg:
+    image: docker.io/postgres:15-alpine
+    restart: unless-stopped
+    profiles: ["hyperswitch"]
+    environment:
+      POSTGRES_USER: db_user
+      POSTGRES_PASSWORD: db_pass
+      POSTGRES_DB: hyperswitch_db
+    volumes:
+      - hyperswitch_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U db_user -d hyperswitch_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  hyperswitch-redis:
+    image: docker.io/redis:7-alpine
+    restart: unless-stopped
+    profiles: ["hyperswitch"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Superposition — config/experiment service the router must reach at
+  # merchant creation (stores fingerprint_secret). Demoted to a friendly
+  # endpoint for the spike: api_key from seed, single workspace.
+  hyperswitch-superposition:
+    image: ghcr.io/juspay/superposition-demo:0.102.0
+    restart: unless-stopped
+    profiles: ["hyperswitch"]
+    depends_on:
+      hyperswitch-redis:
+        condition: service_healthy
+    environment:
+      API_HOSTNAME: http://localhost:8081
+      REDIS_URL: redis://hyperswitch-redis:6379
+    ports:
+      - "8081:8080"
+
+  hyperswitch-superposition-init:
+    image: docker.io/alpine:latest
+    profiles: ["hyperswitch"]
+    depends_on:
+      hyperswitch-superposition:
+        condition: service_started
+    volumes:
+      - ./hyperswitch/config/superposition_seed.toml:/seed.toml:ro
+      - ./hyperswitch/scripts/seed_superposition.sh:/seed_superposition.sh:ro
+    environment:
+      SUPERPOSITION_URL: http://hyperswitch-superposition:8080
+      SEED_FILE: /seed.toml
+      WORKSPACE_ID: dev
+      ORG_ID: localorg
+    command: sh -c "apk add --no-cache bash curl jq yq && bash /seed_superposition.sh"
+    restart: "no"
+
+  hyperswitch-router:
+    image: juspaydotin/hyperswitch-router:standalone
+    restart: unless-stopped
+    profiles: ["hyperswitch"]
+    command: /local/bin/router -f /local/config/docker_compose.toml
+    depends_on:
+      hyperswitch-pg:
+        condition: service_healthy
+      hyperswitch-redis:
+        condition: service_healthy
+      hyperswitch-superposition:
+        condition: service_started
+    volumes:
+      - ./hyperswitch/config:/local/config:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
 volumes:
   postgres_data:
   redis_data:
@@ -284,3 +379,4 @@ volumes:
   omniroute_data:
   openwa_sessions:
   openwa_logs:
+  hyperswitch_pg_data:

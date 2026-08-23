@@ -1,8 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
-import { verifyShareToken } from "../../../../lib/document-generator"
-import { renderPdf, type PdfGeometry } from "../../../../lib/pdf"
-import { resolveDocumentService } from "../../../../lib/document-templates"
+import { verifyShareToken } from "../../../lib/document-generator"
+import { renderPdf, type PdfGeometry } from "../../../lib/pdf"
+import { resolveDocumentService } from "../../../lib/document-templates"
 
 /**
  * Expiring signed share-link redemption (document-builder D4, ADR-0002 §10).

@@ -95,7 +95,7 @@ export async function dispatchDocument(
     const base =
       process.env.MEDUSA_BACKEND_URL ||
       `http://localhost:${process.env.PORT ?? 9000}`
-    shareUrl = `${base}/store/documents/shared?token=${token}`
+    shareUrl = `${base}/share/documents?token=${token}`
   }
   outcome.share_url = shareUrl
 
