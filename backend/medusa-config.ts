@@ -21,7 +21,7 @@ export default defineConfig({
               // file-s3 v2 has no force_path_style option of its own — without
               // this the SDK builds virtual-host hostnames (products.minio)
               // that cannot resolve on the compose network.
-              additionalClientConfig:
+              additional_client_config:
                 process.env.S3_FORCE_PATH_STYLE === "true"
                   ? { forcePathStyle: true }
                   : undefined,
