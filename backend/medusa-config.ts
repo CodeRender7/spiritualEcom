@@ -18,7 +18,13 @@ export default defineConfig({
               region: process.env.S3_REGION,
               bucket: process.env.S3_BUCKET,
               endpoint: process.env.S3_ENDPOINT,
-              force_path_style: process.env.S3_FORCE_PATH_STYLE === "true",
+              // file-s3 v2 has no force_path_style option of its own — without
+              // this the SDK builds virtual-host hostnames (products.minio)
+              // that cannot resolve on the compose network.
+              additionalClientConfig:
+                process.env.S3_FORCE_PATH_STYLE === "true"
+                  ? { forcePathStyle: true }
+                  : undefined,
             },
           },
         ],
