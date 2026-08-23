@@ -45,9 +45,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || 'main' }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
+      # NOTE (document-builder D1 risk #1): arm64 temporarily dropped — QEMU+Chromium exceeded the 30-min timeout. Re-add via native ubuntu-24.04-arm matrix + manifest merge.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -63,7 +61,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly
