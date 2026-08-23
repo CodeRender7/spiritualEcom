@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { resolveDocumentService } from "../../../../lib/document-templates"
-import { renderPdf, type PdfGeometry } from "../../../../lib/pdf"
+import { resolveDocumentService } from "../../../../../../../lib/document-templates"
+import { renderPdf, type PdfGeometry } from "../../../../../../../lib/pdf"
 
 /**
  * Admin document file delivery (document-builder D8).
