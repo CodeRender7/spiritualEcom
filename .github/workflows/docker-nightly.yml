@@ -19,25 +19,33 @@ env:
   IMAGE_OWNER: coderender7
 
 jobs:
-  nightly:
-    name: Nightly ${{ matrix.image }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  # Same native-arm64 pattern as docker-publish.yml: per-platform builds by
+  # digest on real runners, then a manifest merge onto the nightly tags.
+  build:
+    name: Nightly ${{ matrix.image.name }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - image: spiritualecom-backend
+        image:
+          - name: spiritualecom-backend
             context: .
             file: backend/Dockerfile
             build_args: ""
-          - image: spiritualecom-storefront
+          - name: spiritualecom-storefront
             context: .
             file: storefront/Dockerfile
             build_args: |
               NEXT_PUBLIC_MEDUSA_BACKEND_URL=${{ vars.NEXT_PUBLIC_MEDUSA_BACKEND_URL }}
               NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY }}
               NEXT_PUBLIC_STORE_NAME=${{ vars.NEXT_PUBLIC_STORE_NAME }}
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
@@ -45,7 +53,10 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || 'main' }}
 
-      # NOTE (document-builder D1 risk #1): arm64 temporarily dropped — QEMU+Chromium exceeded the 30-min timeout. Re-add via native ubuntu-24.04-arm matrix + manifest merge.
+      - name: Prepare platform id
+        id: prep
+        run: echo "pair=${{ matrix.image.name }}-${{ matrix.platform }}" | tr '/' '-' >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -56,16 +67,70 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push nightly
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          platforms: linux/amd64
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.file }}
+          platforms: ${{ matrix.platform }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly-${{ github.sha }}
-          build-args: ${{ matrix.build_args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          build-args: ${{ matrix.image.build_args }}
+          cache-from: type=gha,scope=nightly-${{ steps.prep.outputs.pair }}
+          cache-to: type=gha,mode=max,scope=nightly-${{ steps.prep.outputs.pair }}
+
+      - name: Export digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.prep.outputs.pair }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge manifest — nightly ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - spiritualecom-backend
+          - spiritualecom-storefront
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch nightly manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly-${{ github.sha }} \
+            $(printf "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}@sha256:%s " *)
+
+      - name: Inspect manifest (verify both platforms)
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:nightly
