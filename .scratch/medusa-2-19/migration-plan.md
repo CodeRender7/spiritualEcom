@@ -1,6 +1,6 @@
 # Medusa v2.18.0 → v2.19.0 Migration Plan
 
-- Status: **Proposed — awaiting approval**
+- Status: **Executed 2026-08-24** — PR #29 merged (9e8e752); all gates green; multi-arch publish success in 6m26s; five dependabot majors closed. UI browser-walkthrough deferred (admin shell + custom API routes verified live; bundle compiled under Vite 7).
 - Scope: five dependabot majors — @medusajs/framework (#22), admin-bundler (#23), file-s3 (#24), cli (#16), admin-sdk (#18)
 - Out of scope: next 16, typescript 7, @types/node 26, react/react-dom majors, CI action bumps (separate efforts)
 - Source: official release notes https://github.com/medusajs/medusa/releases/tag/v2.19.0
