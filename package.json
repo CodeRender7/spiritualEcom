@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-"fallow": "^3.15.0",
+"fallow": "^3.17.0",
     "turbo": "^2.10.9"
   }
 }
